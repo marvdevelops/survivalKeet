@@ -21,7 +21,13 @@ import {
   getChecklistForMember,
   toggleItem,
   resetChecklist,
+  getCustomItemsForMember,
+  addCustomItem,
+  toggleCustomItem,
+  deleteCustomItem,
+  resetCustomItems,
   type ChecklistRow,
+  type CustomChecklistItem,
 } from '../../src/services/checklistService';
 import type { Member, MemberType } from '../../src/db/schema';
 
@@ -51,6 +57,9 @@ export default function ChecklistScreen() {
   const [addModal, setAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<MemberType>('adult');
+  const [addItemModal, setAddItemModal] = useState(false);
+  const [newItemLabel, setNewItemLabel] = useState('');
+  const [customItems, setCustomItems] = useState<CustomChecklistItem[]>([]);
 
   useFocusEffect(useCallback(() => { loadMembers(); }, []));
 
@@ -71,6 +80,8 @@ export default function ChecklistScreen() {
   function selectMember(member: Member) {
     setSelectedMember(member);
     const items = getChecklistForMember(member.id);
+    const custom = getCustomItemsForMember(member.id);
+    setCustomItems(custom);
     const grouped: Record<string, ChecklistRow[]> = {};
     for (const item of items) {
       if (!grouped[item.category]) grouped[item.category] = [];
@@ -116,13 +127,39 @@ export default function ChecklistScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Reset', style: 'destructive',
-        onPress: () => { resetChecklist(selectedMember.id); selectMember(selectedMember); },
+        onPress: () => {
+          resetChecklist(selectedMember.id);
+          resetCustomItems(selectedMember.id);
+          selectMember(selectedMember);
+        },
       },
     ]);
   }
 
-  const totalItems = sections.reduce((s, sec) => s + sec.data.length, 0);
-  const checkedItems = sections.reduce((s, sec) => s + sec.data.filter((i) => i.checked === 1).length, 0);
+  function handleAddCustomItem() {
+    if (!newItemLabel.trim() || !selectedMember) return;
+    addCustomItem(selectedMember.id, newItemLabel.trim());
+    setNewItemLabel('');
+    setAddItemModal(false);
+    selectMember(selectedMember);
+  }
+
+  function handleDeleteCustomItem(item: CustomChecklistItem) {
+    Alert.alert('Remove item?', item.label, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: () => {
+          deleteCustomItem(item.id);
+          if (selectedMember) selectMember(selectedMember);
+        },
+      },
+    ]);
+  }
+
+  const totalItems = sections.reduce((s, sec) => s + sec.data.length, 0) + customItems.length;
+  const checkedItems = sections.reduce((s, sec) => s + sec.data.filter((i) => i.checked === 1).length, 0)
+    + customItems.filter((i) => i.checked === 1).length;
   const progress = totalItems > 0 ? checkedItems / totalItems : 0;
 
   return (
@@ -236,9 +273,88 @@ export default function ChecklistScreen() {
                 </View>
               </TouchableOpacity>
             )}
+            ListFooterComponent={
+              selectedMember ? (
+                <View style={styles.customSection}>
+                  {customItems.length > 0 && (
+                    <>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionHeaderText}>Custom</Text>
+                        <Text style={styles.sectionHeaderCount}>
+                          {customItems.filter((i) => i.checked === 1).length}/{customItems.length}
+                        </Text>
+                      </View>
+                      {customItems.map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={styles.checkItem}
+                          onPress={() => {
+                            toggleCustomItem(item.id, item.checked === 0);
+                            if (selectedMember) selectMember(selectedMember);
+                          }}
+                          onLongPress={() => handleDeleteCustomItem(item)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.checkbox, item.checked === 1 && styles.checkboxChecked]}>
+                            {item.checked === 1 && <Ionicons name="checkmark" size={16} color={colors.white} />}
+                          </View>
+                          <View style={styles.checkItemInfo}>
+                            <Text style={[styles.checkItemLabel, item.checked === 1 && styles.checkItemLabelDone]}>
+                              {item.label}
+                            </Text>
+                            <Text style={styles.checkItemNotes}>Long-press to remove</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                  <TouchableOpacity style={styles.addItemBtn} onPress={() => setAddItemModal(true)}>
+                    <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                    <Text style={styles.addItemText}>Add custom item</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null
+            }
           />
         </>
       )}
+
+      {/* Add custom item modal */}
+      <Modal
+        visible={addItemModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddItemModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKAV}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setAddItemModal(false)} />
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Add Custom Item</Text>
+            <Text style={styles.inputLabel}>Item Name</Text>
+            <TextInput
+              style={styles.input}
+              value={newItemLabel}
+              onChangeText={setNewItemLabel}
+              placeholder="e.g. Insulin, spare glasses, radio"
+              placeholderTextColor={colors.textDim}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleAddCustomItem}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel]} onPress={() => setAddItemModal(false)}>
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnSave]} onPress={handleAddCustomItem}>
+                <Text style={styles.modalBtnSaveText}>Add Item</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Add member modal */}
       <Modal
@@ -471,4 +587,20 @@ const styles = StyleSheet.create({
   modalBtnCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: fontSize.md },
   modalBtnSave: { backgroundColor: colors.primary },
   modalBtnSaveText: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
+
+  customSection: { paddingBottom: spacing.xxl },
+  addItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary + '60',
+    borderStyle: 'dashed',
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    minHeight: 52,
+  },
+  addItemText: { color: colors.primary, fontSize: fontSize.md, fontWeight: '600' },
 });

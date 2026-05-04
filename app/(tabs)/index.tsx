@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,11 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
-import { AlertBanner } from '../../src/components/AlertBanner';
+import { TipsBanner } from '../../src/components/TipsBanner';
 import { QuickActionButton } from '../../src/components/QuickActionButton';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { getAllMembersSummary, type FamilySummary } from '../../src/services/checklistService';
@@ -28,10 +28,10 @@ export default function HomeScreen() {
     setSummaries(getAllMembersSummary());
   }, []);
 
-  useEffect(() => {
+  // Refresh go-bag summary every time the tab comes into focus
+  useFocusEffect(useCallback(() => {
     load();
-    requestLocation();
-  }, [load]);
+  }, [load]));
 
   async function requestLocation() {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -78,9 +78,9 @@ export default function HomeScreen() {
           <Text style={styles.tagline}>Offline survival guide · Philippines</Text>
         </View>
 
-        {/* PAGASA Alert */}
-        <SectionHeader title="PAGASA Alerts" />
-        <AlertBanner />
+        {/* Survival Tips */}
+        <SectionHeader title="Survival Tip" />
+        <TipsBanner />
 
         {/* Quick Actions */}
         <SectionHeader title="Quick Actions" />

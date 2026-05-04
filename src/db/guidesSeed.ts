@@ -622,4 +622,296 @@ Treatment:
 - Paracetamol for fever — do NOT take aspirin or ibuprofen.
 - Seek medical care — dengue can be fatal without treatment.`,
   },
+
+  // ─── FIRST AID (additional) ────────────────────────────────────────────────
+  {
+    category: 'First Aid',
+    title: 'Treating Burns',
+    keywords: 'burns sunog first aid blister scald fire heat wound',
+    body: `BURN SEVERITY
+
+Minor (1st degree): Red skin, no blisters — like sunburn.
+Moderate (2nd degree): Blisters, deep red, wet-looking skin.
+Severe (3rd degree): White/charred skin, no pain (nerves damaged) — EMERGENCY.
+
+FIRST AID FOR MINOR BURNS
+1. Cool the burn immediately — hold under cool (not ice cold) running water for 10–20 minutes.
+2. Do NOT use ice, butter, toothpaste, or oil — these worsen the injury.
+3. Remove jewelry/clothing near the burn before swelling starts.
+4. Cover loosely with a clean non-fluffy cloth or cling wrap.
+5. Take paracetamol for pain relief.
+6. Do NOT pop blisters — they protect against infection.
+
+SEEK MEDICAL HELP IF:
+- Burn is larger than the palm of your hand.
+- Burn is on face, hands, feet, genitals, or over a joint.
+- Burn appears deep or white/charred.
+- Victim is a child or elderly person.
+- Caused by electricity or chemicals.
+
+CHEMICAL BURNS
+- Brush off dry chemicals first, then flush with large amounts of water for 20+ minutes.
+- Remove contaminated clothing while flushing.
+- Do NOT neutralize (e.g., acid with base) — this causes heat.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Tourniquet Application',
+    keywords: 'tourniquet bleeding severe hemorrhage limb wound blood loss',
+    body: `A tourniquet stops life-threatening bleeding from an arm or leg when direct pressure fails.
+
+WHEN TO USE
+- Severe, uncontrolled bleeding from a limb.
+- Bleeding that soaks through bandages in under 5 minutes.
+- Traumatic amputation.
+
+IMPROVISED TOURNIQUET (if no commercial one)
+You need: a strip of cloth 2–4 inches wide (belt, shirt strip, necktie) and a stick/pen.
+
+STEPS
+1. Place the tourniquet 2–3 inches ABOVE the wound (closer to the heart). Never on a joint.
+2. Wrap twice around the limb.
+3. Tie a half-knot, place the stick on top, tie another knot over the stick.
+4. Twist the stick until bleeding stops (this will be painful — this is necessary).
+5. Secure the stick so it cannot unwind (tie it down).
+6. Write the time applied on the victim's skin with a marker or blood: "TK 14:35".
+7. Do NOT remove once applied — only medical personnel should remove it.
+8. Keep the limb visible and the tourniquet accessible.
+
+IMPORTANT
+- Do NOT use wire, rope, or cord — these cut into skin.
+- Tourniquet pain is expected — do not loosen to relieve it.
+- Seek emergency medical care immediately.
+- A properly applied tourniquet can be left on for up to 2 hours.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Insect Bites & Bee Stings',
+    keywords: 'insect bite bee sting anaphylaxis allergy wasp hornet ant karayom pukyutan',
+    body: `BEE / WASP STINGS
+
+1. Move away from the area — more bees may attack.
+2. Remove the stinger quickly by scraping sideways with a credit card or fingernail. Do NOT squeeze or use tweezers (releases more venom).
+3. Wash the area with soap and water.
+4. Apply a cold pack for 10 minutes to reduce swelling.
+5. Take antihistamine (e.g., cetirizine) for itching and mild swelling.
+6. Hydrocortisone cream can reduce local reaction.
+
+SIGNS OF SEVERE ALLERGIC REACTION (Anaphylaxis) — EMERGENCY
+- Throat tightening, difficulty breathing or swallowing.
+- Swelling of face, lips, or tongue.
+- Dizziness, rapid weak pulse, pale/clammy skin.
+- Nausea, vomiting, sudden drop in consciousness.
+
+IF ANAPHYLAXIS: Use epinephrine auto-injector (EpiPen) if available, call 911, lay victim flat with legs raised unless breathing is difficult.
+
+FIRE ANT BITES
+- Wash immediately with soap and water.
+- Apply cool compress. Do NOT scratch — pustules will form in 24 hours.
+- Antihistamine for itching. Watch for allergic reaction.
+
+MOSQUITO / GENERAL INSECT BITES
+- Wash with soap and water.
+- Cold compress for swelling.
+- Hydrocortisone cream for itch.
+- Avoid scratching to prevent infection.
+- Watch for signs of dengue (see Dengue guide) 5–7 days after.
+
+CENTIPEDE BITES (PHILIPPINES)
+- Painful but rarely dangerous. Wash with soap and water.
+- Apply cold compress. Elevate the limb.
+- Ibuprofen or paracetamol for pain.
+- Seek help if severe swelling, numbness, or systemic symptoms develop.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Snake Bite Protocol',
+    keywords: 'snake bite ahas venom cobra python king cobra sea snake antivenom',
+    body: `THE PHILIPPINES HAS SEVERAL VENOMOUS SNAKES
+Including: Philippine cobra, king cobra, sea snakes, and pit vipers.
+Every bite must be treated as potentially venomous until confirmed otherwise.
+
+IMMEDIATE STEPS
+1. Move the victim away from the snake. Do NOT attempt to catch or kill it.
+2. Keep the victim calm and still — movement speeds venom spread.
+3. Remove rings, watches, and tight clothing near the bite before swelling starts.
+4. Immobilize the bitten limb at or below heart level using a splint/sling.
+5. Clean the wound gently with soap and water. Cover with a clean dressing.
+6. GET TO A HOSPITAL IMMEDIATELY — antivenom is the only effective treatment.
+7. Note the time of the bite and take a photo of the snake if safely possible.
+
+DO NOT:
+- Cut the wound or try to suck out venom.
+- Apply a tourniquet or tight bandage (unless instructed by poison control).
+- Apply ice, electricity, or chemical treatments.
+- Give alcohol or stimulants.
+- Leave the victim alone.
+
+PRESSURE IMMOBILIZATION (for neurotoxic snakes like cobra)
+- Wrap the entire limb with an elastic bandage, starting at the fingers/toes.
+- Wrap firmly (like a sprained ankle) — NOT as tight as a tourniquet.
+- Apply a splint to prevent movement.
+- Immobilize the victim completely.
+- This slows spread of neurotoxic (not cytotoxic) venom.
+
+WARNING SIGNS — RUSH TO HOSPITAL
+- Drooping eyelids, blurred vision, difficulty swallowing/breathing.
+- Severe swelling spreading up the limb.
+- Vomiting, collapse, or loss of consciousness.
+- Numbness or paralysis.
+
+PHILIPPINES POISON CONTROL: (02) 8524-1078`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Recognizing & Treating Shock',
+    keywords: 'shock blood loss trauma pale sweating weak pulse collapse emergency',
+    body: `SHOCK is a life-threatening condition where the body's organs are not getting enough blood.
+
+CAUSES
+- Severe bleeding (most common in disaster settings).
+- Severe burns, dehydration, spinal injury, allergic reaction (anaphylaxis), heart attack.
+
+SIGNS OF SHOCK
+- Pale, cold, clammy, or gray skin.
+- Rapid, weak, or irregular pulse.
+- Fast, shallow breathing.
+- Confusion, anxiety, or loss of consciousness.
+- Nausea or vomiting.
+- Thirst, weakness, dizziness.
+
+FIRST AID
+1. Call 911 or get the victim to hospital IMMEDIATELY.
+2. Lay the victim flat on their back.
+3. Raise the legs 30 cm (12 inches) unless head/neck/spine/chest injury is suspected.
+4. Keep the victim warm — cover with a blanket. Do NOT overheat.
+5. Do NOT give food or water by mouth.
+6. Control any visible bleeding with direct pressure.
+7. Loosen tight clothing (collar, belt).
+8. Talk to the victim calmly. Reassurance helps.
+9. Monitor breathing continuously. Be ready to perform CPR.
+
+IF UNCONSCIOUS AND BREATHING: Place in recovery position (on side).
+IF NOT BREATHING: Begin CPR.
+
+WHAT NOT TO DO
+- Do NOT leave the victim alone.
+- Do NOT give anything to eat or drink.
+- Do NOT apply a heat source directly to skin.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Heat Stroke & Heat Exhaustion',
+    keywords: 'heat stroke exhaustion hyperthermia summer hot weather init cooling',
+    body: `HEAT EXHAUSTION (Warning Stage)
+Symptoms: Heavy sweating, cold/pale/clammy skin, fast weak pulse, nausea, muscle cramps, tiredness, dizziness, headache, fainting.
+
+TREATMENT
+1. Move to cool shade or air-conditioned area immediately.
+2. Loosen or remove extra clothing.
+3. Apply cool wet cloths to skin; fan the person.
+4. Have them sip cool water slowly if conscious (not ice cold).
+5. Lay flat with legs elevated.
+6. If vomiting starts or symptoms worsen after 1 hour → HEAT STROKE EMERGENCY.
+
+─────────────────────────────
+HEAT STROKE (Life-Threatening)
+Symptoms: High body temperature (over 39.4°C/103°F), hot/red/dry OR moist skin, rapid strong pulse, confusion, slurred speech, unconsciousness.
+
+TREATMENT — COOL IMMEDIATELY, CALL 911
+1. Move to coolest available location.
+2. Cool the person RAPIDLY:
+   - Immerse in cool (not ice) water if possible.
+   - Place ice packs on neck, armpits, and groin.
+   - Spray with cool water and fan aggressively.
+3. Do NOT give fluids by mouth if confused or unconscious.
+4. Continue cooling until temperature drops below 38.3°C (101°F) or emergency services arrive.
+
+HIGH-RISK GROUPS: elderly, children, outdoor workers, those with chronic illness.
+PREVENTION: Hydrate every 15–20 min during outdoor activity, wear light clothing, avoid sun between 10am–4pm.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Wound Cleaning & Infection Prevention',
+    keywords: 'wound cut laceration infection cleaning bandage suture antiseptic sugat',
+    body: `STEP-BY-STEP WOUND CARE
+
+1. CONTROL BLEEDING
+   - Apply firm, direct pressure with a clean cloth for 10–15 minutes.
+   - Do NOT lift the cloth to check — maintain pressure.
+   - If blood soaks through, add more cloth on top.
+   - Elevate the injured part above the heart if possible.
+
+2. CLEAN THE WOUND (once bleeding is controlled)
+   - Wash your hands or use gloves if available.
+   - Rinse wound under clean running water for 5–10 minutes.
+   - Gently clean around the wound with soap — keep soap OUT of the wound.
+   - Remove visible debris (gravel, dirt) with clean tweezers.
+   - Do NOT use alcohol, hydrogen peroxide, or iodine directly in the wound — they damage tissue.
+
+3. APPLY ANTISEPTIC
+   - Apply a thin layer of antibiotic ointment (e.g., bacitracin/mupirocin) if available.
+   - This reduces infection risk, not completely required if wound is clean.
+
+4. COVER
+   - Cover with a sterile bandage or clean cloth.
+   - Change dressing daily or when wet/dirty.
+
+SIGNS OF INFECTION (watch for 24–72 hrs)
+- Increasing redness, warmth, or swelling around the wound.
+- Pus or cloudy discharge.
+- Red streaks spreading from the wound.
+- Fever.
+- Wound smells bad.
+
+If infection signs appear: seek medical care, do NOT try to drain deep infections at home.
+
+WOUNDS REQUIRING MEDICAL CARE
+- Deep wounds (can see fat or muscle).
+- Gaping wounds that won't stay closed (may need stitches within 6–8 hours).
+- Animal or human bites.
+- Puncture wounds (nail, thorn) — high tetanus/infection risk.
+- Any wound if the victim hasn't had a tetanus shot in 5 years.`,
+  },
+
+  // ─── SURVIVAL (additional) ─────────────────────────────────────────────────
+  {
+    category: 'Survival',
+    title: 'Managing Insect-Borne Diseases',
+    keywords: 'malaria leptospirosis dengue mosquito flood water disease prevention lamok',
+    body: `After a disaster, standing water and disrupted sanitation greatly increase disease risk.
+
+DENGUE (Mosquito-borne)
+Prevention:
+- Eliminate standing water in containers, tires, pots.
+- Use mosquito nets and repellent (DEET-based).
+- Wear long sleeves and pants, especially at dawn and dusk.
+- "4 o'clock habit": inspect surroundings for water containers at 4pm daily.
+Symptoms: Sudden high fever (39–40°C), severe headache, eye pain, joint/muscle pain, rash.
+Action: Rest, hydrate, paracetamol ONLY (no aspirin/ibuprofen). Seek medical care.
+
+LEPTOSPIROSIS (Flood water exposure)
+HIGH RISK: Wading through flood water, especially near rat habitats.
+Prevention:
+- Wear rubber boots and gloves when in flood water.
+- Cover cuts and wounds before exposure.
+- Do not swallow flood water.
+- Take doxycycline prophylaxis if prescribed by a doctor.
+Symptoms (appear 2–30 days after exposure): Fever, headache, chills, muscle pain (especially calf), red eyes, jaundice (yellow skin).
+Action: Seek medical care immediately — leptospirosis can be fatal but is curable with antibiotics.
+
+CHOLERA / DIARRHEAL DISEASE (Contaminated water)
+Prevention:
+- Only drink boiled or bottled water.
+- Cook food thoroughly.
+- Wash hands with soap before eating and after using toilet.
+Symptoms: Sudden profuse watery diarrhea, vomiting, rapid dehydration.
+Action: Oral Rehydration Solution (ORS). Seek medical care for severe cases.
+
+GENERAL DISEASE PREVENTION IN DISASTERS
+- Boil all water for at least 1 minute (3 minutes at altitude).
+- Use mosquito nets when sleeping.
+- Do not share personal items (cups, utensils).
+- Wash hands frequently even with limited water.`,
+  },
 ];

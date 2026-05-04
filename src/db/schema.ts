@@ -131,6 +131,16 @@ export const CREATE_TABLES_SQL = `
     content_rowid=id
   );
 
+  CREATE TABLE IF NOT EXISTS custom_checklist_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    category TEXT DEFAULT 'Custom',
+    label TEXT NOT NULL,
+    checked INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

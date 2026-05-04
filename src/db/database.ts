@@ -46,6 +46,17 @@ function _initOnce(database: SQLite.SQLiteDatabase): void {
       database.runSync('DELETE FROM guides_fts');
       _seedGuides(database);
       database.runSync("INSERT INTO app_meta (key, value) VALUES ('guides_v2_seeded', '1')");
+      database.runSync("INSERT INTO app_meta (key, value) VALUES ('guides_v3_seeded', '1')");
+    } else {
+      const guidesV3 = database.getFirstSync<{ value: string }>(
+        "SELECT value FROM app_meta WHERE key = 'guides_v3_seeded'"
+      );
+      if (!guidesV3) {
+        database.runSync('DELETE FROM guides');
+        database.runSync('DELETE FROM guides_fts');
+        _seedGuides(database);
+        database.runSync("INSERT INTO app_meta (key, value) VALUES ('guides_v3_seeded', '1')");
+      }
     }
   }
 }

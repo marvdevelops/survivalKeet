@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,11 @@ import {
   ScrollView,
   Alert,
   Platform,
+  KeyboardAvoidingView,
+  NativeSyntheticEvent,
 } from 'react-native';
 import * as Location from 'expo-location';
+import { Magnetometer } from 'expo-sensors';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Map,
@@ -22,7 +25,6 @@ import {
   type CameraRef,
   type PressEvent,
 } from '@maplibre/maplibre-react-native';
-import type { NativeSyntheticEvent } from 'react-native';
 import type { StyleSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { colors, spacing, fontSize, radius } from '../theme';
 import { getAllPins, addPin, deletePin } from '../services/pinsService';
@@ -44,32 +46,42 @@ const PIN_ICONS: Record<PinType, keyof typeof Ionicons.glyphMap> = {
   custom: 'location',
 };
 
-const OSM_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
+// CartoDB Dark Matter — matches dark theme, much crisper than OSM raster
+const BASE_STYLE_SOURCES: StyleSpecification['sources'] = {
+  cartodb: {
+    type: 'raster',
+    tiles: [
+      'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+      'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+      'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+    ],
+    tileSize: 256,
+    attribution: '© OpenStreetMap contributors © CARTO',
+    maxzoom: 19,
   },
-  layers: [
-    { id: 'osm-tiles', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 },
-  ],
+  flood: {
+    type: 'raster',
+    // JRC Global Surface Water — historical water occurrence, proxy for flood risk
+    tiles: ['https://storage.googleapis.com/global-surface-water/tiles2021/occurrence/{z}/{x}/{y}.png'],
+    tileSize: 256,
+    attribution: '© EC JRC / Google',
+    maxzoom: 13,
+  },
 };
 
 interface AddPinState {
   visible: boolean;
   lat: number;
   lon: number;
+  latText: string;
+  lonText: string;
   name: string;
   type: PinType;
   note: string;
 }
 
 const DEFAULT_ADD_PIN: AddPinState = {
-  visible: false, lat: 0, lon: 0, name: '', type: 'evacuation', note: '',
+  visible: false, lat: 0, lon: 0, latText: '', lonText: '', name: '', type: 'evacuation', note: '',
 };
 
 export default function MapContent() {
@@ -80,7 +92,38 @@ export default function MapContent() {
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [routeTarget, setRouteTarget] = useState<Pin | null>(null);
   const [showOverlays, setShowOverlays] = useState(false);
-  const [overlays, setOverlays] = useState({ faultLines: false, elevation: false });
+  const [overlays, setOverlays] = useState({ flood: false });
+  const [heading, setHeading] = useState(0);
+
+  // Compass heading from magnetometer
+  useEffect(() => {
+    let sub: ReturnType<typeof Magnetometer.addListener> | null = null;
+    Magnetometer.isAvailableAsync().then((available) => {
+      if (!available) return;
+      Magnetometer.setUpdateInterval(400);
+      sub = Magnetometer.addListener(({ x, y }) => {
+        let angle = Math.atan2(y, x) * (180 / Math.PI);
+        if (angle < 0) angle += 360;
+        setHeading(Math.round((360 - angle) % 360));
+      });
+    });
+    return () => { sub?.remove(); };
+  }, []);
+
+  // Build map style dynamically so flood layer toggles without remount
+  const mapStyle = useMemo((): StyleSpecification => ({
+    version: 8,
+    sources: BASE_STYLE_SOURCES,
+    layers: [
+      { id: 'carto-dark', type: 'raster', source: 'cartodb' },
+      ...(overlays.flood ? [{
+        id: 'flood-layer',
+        type: 'raster' as const,
+        source: 'flood',
+        paint: { 'raster-opacity': 0.45 },
+      }] : []),
+    ],
+  }), [overlays.flood]);
 
   async function requestLocation() {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -88,12 +131,32 @@ export default function MapContent() {
     const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
     const coords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
     setUserLocation(coords);
-    cameraRef.current?.flyTo({ center: coords, zoom: 14, duration: 500 });
+    // easeTo handles both center + zoom reliably in MapLibre v11
+    cameraRef.current?.easeTo({ center: coords, zoom: 15, duration: 600 });
   }
 
   function handleMapLongPress(event: NativeSyntheticEvent<PressEvent>) {
     const [longitude, latitude] = event.nativeEvent.lngLat;
-    setAddPinState({ ...DEFAULT_ADD_PIN, visible: true, lat: latitude, lon: longitude });
+    setAddPinState({
+      ...DEFAULT_ADD_PIN,
+      visible: true,
+      lat: latitude,
+      lon: longitude,
+      latText: latitude.toFixed(6),
+      lonText: longitude.toFixed(6),
+    });
+  }
+
+  function handleCoordChange(field: 'latText' | 'lonText', value: string) {
+    setAddPinState((s) => {
+      const next = { ...s, [field]: value };
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed)) {
+        if (field === 'latText') next.lat = parsed;
+        else next.lon = parsed;
+      }
+      return next;
+    });
   }
 
   function handleSavePin() {
@@ -101,7 +164,13 @@ export default function MapContent() {
       Alert.alert('Name required', 'Please enter a name for this pin.');
       return;
     }
-    addPin(addPinState.name.trim(), addPinState.type, addPinState.lat, addPinState.lon, addPinState.note.trim());
+    const lat = parseFloat(addPinState.latText);
+    const lon = parseFloat(addPinState.lonText);
+    if (isNaN(lat) || isNaN(lon)) {
+      Alert.alert('Invalid coordinates', 'Please enter valid latitude and longitude.');
+      return;
+    }
+    addPin(addPinState.name.trim(), addPinState.type, lat, lon, addPinState.note.trim());
     setPins(getAllPins());
     setAddPinState(DEFAULT_ADD_PIN);
   }
@@ -130,11 +199,13 @@ export default function MapContent() {
         }
       : null;
 
+  const compassCardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(heading / 45) % 8];
+
   return (
     <View style={styles.container}>
       <Map
         style={styles.map}
-        mapStyle={OSM_STYLE}
+        mapStyle={mapStyle}
         logo={false}
         attribution
         attributionPosition={{ bottom: 8, right: 8 }}
@@ -171,7 +242,7 @@ export default function MapContent() {
         ))}
       </Map>
 
-      {/* Top controls */}
+      {/* Top bar */}
       <View style={styles.topControls} pointerEvents="box-none">
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Map</Text>
@@ -180,6 +251,12 @@ export default function MapContent() {
         <TouchableOpacity style={styles.overlayBtn} onPress={() => setShowOverlays(true)}>
           <Ionicons name="layers" size={20} color={colors.text} />
         </TouchableOpacity>
+      </View>
+
+      {/* Compass widget */}
+      <View style={styles.compassWidget} pointerEvents="none">
+        <Text style={styles.compassHeading}>{heading}°</Text>
+        <Text style={styles.compassCardinal}>{compassCardinal}</Text>
       </View>
 
       {/* Float buttons */}
@@ -208,6 +285,7 @@ export default function MapContent() {
             </TouchableOpacity>
           </View>
           <Text style={styles.calloutType}>{selectedPin.type.toUpperCase()}</Text>
+          <Text style={styles.calloutCoords}>{selectedPin.lat.toFixed(5)}, {selectedPin.lon.toFixed(5)}</Text>
           {selectedPin.note ? <Text style={styles.calloutNote}>{selectedPin.note}</Text> : null}
           <View style={styles.calloutActions}>
             <TouchableOpacity
@@ -241,12 +319,42 @@ export default function MapContent() {
         animationType="slide"
         onRequestClose={() => setAddPinState(DEFAULT_ADD_PIN)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalKAV}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setAddPinState(DEFAULT_ADD_PIN)} />
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Add Pin</Text>
-            <Text style={styles.modalCoords}>
-              {addPinState.lat.toFixed(5)}, {addPinState.lon.toFixed(5)}
-            </Text>
+
+            {/* Editable coordinates */}
+            <View style={styles.coordRow}>
+              <View style={styles.coordField}>
+                <Text style={styles.inputLabel}>Latitude</Text>
+                <TextInput
+                  style={styles.input}
+                  value={addPinState.latText}
+                  onChangeText={(v) => handleCoordChange('latText', v)}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="0.000000"
+                  placeholderTextColor={colors.textDim}
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={styles.coordField}>
+                <Text style={styles.inputLabel}>Longitude</Text>
+                <TextInput
+                  style={styles.input}
+                  value={addPinState.lonText}
+                  onChangeText={(v) => handleCoordChange('lonText', v)}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="0.000000"
+                  placeholderTextColor={colors.textDim}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
             <Text style={styles.inputLabel}>Name</Text>
             <TextInput
               style={styles.input}
@@ -256,6 +364,7 @@ export default function MapContent() {
               placeholderTextColor={colors.textDim}
               autoFocus
             />
+
             <Text style={styles.inputLabel}>Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.typeRow}>
@@ -272,6 +381,7 @@ export default function MapContent() {
                 ))}
               </View>
             </ScrollView>
+
             <Text style={styles.inputLabel}>Note (optional)</Text>
             <TextInput
               style={[styles.input, styles.inputMulti]}
@@ -282,6 +392,7 @@ export default function MapContent() {
               multiline
               numberOfLines={2}
             />
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCancel]}
@@ -294,7 +405,7 @@ export default function MapContent() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Overlays Modal */}
@@ -305,27 +416,21 @@ export default function MapContent() {
         onRequestClose={() => setShowOverlays(false)}
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowOverlays(false)}>
-          <View style={[styles.modalSheet, { maxHeight: 300 }]}>
+          <View style={[styles.modalSheet, { maxHeight: 260 }]}>
             <Text style={styles.modalTitle}>Overlays</Text>
-            {[
-              { key: 'faultLines' as const, label: 'Fault Lines', icon: 'alert-circle-outline' as const },
-              { key: 'elevation' as const, label: 'Elevation', icon: 'layers-outline' as const },
-            ].map((o) => (
-              <TouchableOpacity
-                key={o.key}
-                style={styles.overlayRow}
-                onPress={() => setOverlays((s) => ({ ...s, [o.key]: !s[o.key] }))}
-              >
-                <Ionicons name={o.icon} size={20} color={colors.textSecondary} />
-                <Text style={styles.overlayLabel}>{o.label}</Text>
-                <View style={[styles.overlayToggle, overlays[o.key] && { backgroundColor: colors.primary }]}>
-                  {overlays[o.key] && <Ionicons name="checkmark" size={14} color={colors.white} />}
-                </View>
-              </TouchableOpacity>
-            ))}
-            <Text style={styles.overlayNote}>
-              Add fault_lines.geojson and elevation.geojson to assets/geojson/ to enable overlays.
-            </Text>
+            <TouchableOpacity
+              style={styles.overlayRow}
+              onPress={() => setOverlays((s) => ({ ...s, flood: !s.flood }))}
+            >
+              <Ionicons name="water-outline" size={20} color="#1ABC9C" />
+              <View style={styles.overlayInfo}>
+                <Text style={styles.overlayLabel}>Flood Hazard</Text>
+                <Text style={styles.overlaySubLabel}>Historical water occurrence (JRC)</Text>
+              </View>
+              <View style={[styles.overlayToggle, overlays.flood && { backgroundColor: '#1ABC9C' }]}>
+                {overlays.flood && <Ionicons name="checkmark" size={14} color={colors.white} />}
+              </View>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -348,6 +453,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface + 'EE', borderRadius: radius.md,
     padding: spacing.sm, borderWidth: 1, borderColor: colors.border,
   },
+  compassWidget: {
+    position: 'absolute',
+    top: 80,
+    right: spacing.md,
+    backgroundColor: colors.surface + 'EE',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+    minWidth: 52,
+  },
+  compassHeading: { color: colors.text, fontSize: fontSize.sm, fontWeight: '700' },
+  compassCardinal: { color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' },
   floatButtons: { position: 'absolute', right: spacing.md, bottom: 100, gap: spacing.sm },
   floatBtn: {
     backgroundColor: colors.surface, borderRadius: radius.full,
@@ -369,7 +489,8 @@ const styles = StyleSheet.create({
   calloutHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
   calloutDot: { width: 10, height: 10, borderRadius: 5 },
   calloutTitle: { color: colors.text, fontSize: fontSize.md, fontWeight: '700', flex: 1 },
-  calloutType: { color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: spacing.xs },
+  calloutType: { color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 2 },
+  calloutCoords: { color: colors.textDim, fontSize: fontSize.xs, marginBottom: spacing.xs },
   calloutNote: { color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.sm },
   calloutActions: { flexDirection: 'row', gap: spacing.md },
   calloutAction: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
@@ -380,13 +501,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface + 'EE', borderRadius: radius.sm, padding: spacing.sm,
   },
   routeText: { color: colors.textSecondary, fontSize: fontSize.xs },
+
+  // Modals
+  modalKAV: { flex: 1, justifyContent: 'flex-end' },
+  modalDismiss: { flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: '#000000AA', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.surface, borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.sm,
   },
   modalTitle: { color: colors.text, fontSize: fontSize.xl, fontWeight: '700' },
-  modalCoords: { color: colors.textSecondary, fontSize: fontSize.xs },
+  coordRow: { flexDirection: 'row', gap: spacing.sm },
+  coordField: { flex: 1 },
   inputLabel: {
     color: colors.textSecondary, fontSize: fontSize.xs,
     fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8,
@@ -405,20 +531,21 @@ const styles = StyleSheet.create({
   },
   typeChipText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '600' },
   modalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  modalBtn: { flex: 1, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },
+  modalBtn: { flex: 1, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', minHeight: 52, justifyContent: 'center' },
   modalBtnCancel: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
   modalBtnCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: fontSize.md },
   modalBtnSave: { backgroundColor: colors.primary },
   modalBtnSaveText: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
   overlayRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingVertical: spacing.sm,
   },
-  overlayLabel: { color: colors.text, fontSize: fontSize.md, flex: 1 },
+  overlayInfo: { flex: 1 },
+  overlayLabel: { color: colors.text, fontSize: fontSize.md, fontWeight: '600' },
+  overlaySubLabel: { color: colors.textDim, fontSize: fontSize.xs, marginTop: 2 },
   overlayToggle: {
-    width: 24, height: 24, borderRadius: 6,
+    width: 26, height: 26, borderRadius: 6,
     backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  overlayNote: { color: colors.textDim, fontSize: fontSize.xs, marginTop: spacing.sm, lineHeight: 18 },
 });
