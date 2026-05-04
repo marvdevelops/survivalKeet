@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "SurviveKit",
+    "slug": "survivekit",
+    "version": "1.0.0",
+    "scheme": "survivekit",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D1117"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.survivekit.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SurviveKit needs your location to show where you are on the map and save locations.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "SurviveKit needs your location for navigation and offline use.",
+        "NSMotionUsageDescription": "SurviveKit uses the compass sensor to show your heading.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.survivekit.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D1117"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "SurviveKit needs your location for navigation and offline use.",
+          "locationWhenInUsePermission": "SurviveKit needs your location to show where you are on the map."
+        }
+      ],
+      "@maplibre/maplibre-react-native"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "245f18b6-67c2-45f6-af1e-c731de04d33a"
+      }
+    }
+  }
+}

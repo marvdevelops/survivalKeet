@@ -1,0 +1,102 @@
+import { getDb } from '../db/database';
+import type { Alert } from '../db/schema';
+
+const PAGASA_URLS = [
+  'https://pubfiles.pagasa.dost.gov.ph/rss/weather_bulletin.xml',
+  'https://pubfiles.pagasa.dost.gov.ph/pagasaweb/files/rss/weather_bulletin.xml',
+];
+
+export interface AlertsResult {
+  alerts: Alert[];
+  error: string | null;
+  fromCache: boolean;
+}
+
+export function getCachedAlerts(): Alert[] {
+  return getDb().getAllSync<Alert>(
+    'SELECT * FROM alerts ORDER BY cached_at DESC LIMIT 10'
+  );
+}
+
+export function getLastUpdated(): string | null {
+  const row = getDb().getFirstSync<{ cached_at: string }>(
+    'SELECT cached_at FROM alerts ORDER BY cached_at DESC LIMIT 1'
+  );
+  return row?.cached_at ?? null;
+}
+
+export async function fetchAndCacheAlerts(): Promise<AlertsResult> {
+  let lastError = '';
+
+  for (const url of PAGASA_URLS) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: { Accept: 'application/rss+xml, application/xml, text/xml, */*' },
+      });
+
+      if (!response.ok) {
+        lastError = `Server returned ${response.status}`;
+        continue;
+      }
+
+      const xml = await response.text();
+      const items = parseRSSItems(xml);
+
+      if (items.length === 0) {
+        lastError = 'Feed returned no items';
+        continue;
+      }
+
+      const db = getDb();
+      db.runSync('DELETE FROM alerts');
+      for (const item of items) {
+        db.runSync(
+          `INSERT INTO alerts (title, description, published_at, source) VALUES (?, ?, ?, 'PAGASA')`,
+          item.title,
+          item.description,
+          item.pubDate
+        );
+      }
+
+      return { alerts: getCachedAlerts(), error: null, fromCache: false };
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : 'Network error';
+    }
+  }
+
+  const cached = getCachedAlerts();
+  return {
+    alerts: cached,
+    error: lastError || 'Could not reach PAGASA servers',
+    fromCache: true,
+  };
+}
+
+interface RSSItem {
+  title: string;
+  description: string;
+  pubDate: string;
+}
+
+function parseRSSItems(xml: string): RSSItem[] {
+  const items: RSSItem[] = [];
+  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const block = match[1];
+    const title = extractTag(block, 'title') ?? 'PAGASA Bulletin';
+    const description = extractTag(block, 'description') ?? '';
+    const pubDate = extractTag(block, 'pubDate') ?? new Date().toISOString();
+    items.push({ title, description, pubDate });
+  }
+
+  return items.slice(0, 10);
+}
+
+function extractTag(xml: string, tag: string): string | null {
+  const regex = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/${tag}>`, 'si');
+  const match = regex.exec(xml);
+  return match ? match[1].trim() : null;
+}
