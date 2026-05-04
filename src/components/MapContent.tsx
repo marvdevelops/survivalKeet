@@ -46,14 +46,14 @@ const PIN_ICONS: Record<PinType, keyof typeof Ionicons.glyphMap> = {
   custom: 'location',
 };
 
-// CartoDB Dark Matter — matches dark theme, much crisper than OSM raster
+// CartoDB Voyager — balanced, readable, not too dark or too bright
 const BASE_STYLE_SOURCES: StyleSpecification['sources'] = {
   cartodb: {
     type: 'raster',
     tiles: [
-      'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
     ],
     tileSize: 256,
     attribution: '© OpenStreetMap contributors © CARTO',
@@ -68,6 +68,19 @@ const BASE_STYLE_SOURCES: StyleSpecification['sources'] = {
     maxzoom: 13,
   },
 };
+
+/** Haversine straight-line distance in km */
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 interface AddPinState {
   visible: boolean;
@@ -253,7 +266,7 @@ export default function MapContent() {
         </TouchableOpacity>
       </View>
 
-      {/* Compass widget */}
+      {/* Compass widget — bottom-left, clear of all other controls */}
       <View style={styles.compassWidget} pointerEvents="none">
         <Text style={styles.compassHeading}>{heading}°</Text>
         <Text style={styles.compassCardinal}>{compassCardinal}</Text>
@@ -293,7 +306,7 @@ export default function MapContent() {
               onPress={() => { setRouteTarget(selectedPin); setSelectedPin(null); }}
             >
               <Ionicons name="navigate" size={16} color={colors.success} />
-              <Text style={[styles.calloutActionText, { color: colors.success }]}>Route</Text>
+              <Text style={[styles.calloutActionText, { color: colors.success }]}>Bearing</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.calloutAction} onPress={() => handleDeletePin(selectedPin)}>
               <Ionicons name="trash" size={16} color={colors.danger} />
@@ -307,7 +320,16 @@ export default function MapContent() {
         <View style={styles.routeInfo} pointerEvents="none">
           <Ionicons name="navigate" size={14} color={colors.primary} />
           <Text style={styles.routeText}>
-            Straight line to: <Text style={{ color: colors.text }}>{routeTarget.name}</Text>
+            {'Bearing to '}
+            <Text style={{ color: colors.text, fontWeight: '700' }}>{routeTarget.name}</Text>
+            {'  ·  '}
+            <Text style={{ color: colors.primary }}>
+              {haversineKm(
+                userLocation[1], userLocation[0],
+                routeTarget.lat, routeTarget.lon,
+              ).toFixed(1)} km
+            </Text>
+            <Text style={styles.routeNote}>{' (straight line)'}</Text>
           </Text>
         </View>
       )}
@@ -455,8 +477,8 @@ const styles = StyleSheet.create({
   },
   compassWidget: {
     position: 'absolute',
-    top: 80,
-    right: spacing.md,
+    bottom: 160,
+    left: spacing.md,
     backgroundColor: colors.surface + 'EE',
     borderRadius: radius.md,
     borderWidth: 1,
@@ -500,7 +522,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     backgroundColor: colors.surface + 'EE', borderRadius: radius.sm, padding: spacing.sm,
   },
-  routeText: { color: colors.textSecondary, fontSize: fontSize.xs },
+  routeText: { color: colors.textSecondary, fontSize: fontSize.xs, flex: 1 },
+  routeNote: { color: colors.textDim, fontSize: fontSize.xs },
 
   // Modals
   modalKAV: { flex: 1, justifyContent: 'flex-end' },
