@@ -46,8 +46,11 @@ const PIN_ICONS: Record<PinType, keyof typeof Ionicons.glyphMap> = {
   custom: 'location',
 };
 
-// CartoDB Voyager — balanced, readable, not too dark or too bright
-const BASE_STYLE_SOURCES: StyleSpecification['sources'] = {
+type MapMode = 'standard' | 'satellite';
+
+// All tile sources declared once — layers decide what's visible
+const ALL_SOURCES: StyleSpecification['sources'] = {
+  // CartoDB Voyager — standard road map
   cartodb: {
     type: 'raster',
     tiles: [
@@ -59,9 +62,32 @@ const BASE_STYLE_SOURCES: StyleSpecification['sources'] = {
     attribution: '© OpenStreetMap contributors © CARTO',
     maxzoom: 19,
   },
+  // Esri World Imagery — satellite base (free, no API key)
+  esri_sat: {
+    type: 'raster',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    attribution: '© Esri, Maxar, Earthstar Geographics',
+    maxzoom: 19,
+  },
+  // Esri road + label overlay for hybrid satellite mode
+  esri_labels: {
+    type: 'raster',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    maxzoom: 19,
+  },
+  // Esri World Shaded Relief — terrain elevation shading overlay
+  esri_relief: {
+    type: 'raster',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    attribution: '© Esri',
+    maxzoom: 13,
+  },
+  // JRC Global Surface Water — historical flood occurrence overlay
   flood: {
     type: 'raster',
-    // JRC Global Surface Water — historical water occurrence, proxy for flood risk
     tiles: ['https://storage.googleapis.com/global-surface-water/tiles2021/occurrence/{z}/{x}/{y}.png'],
     tileSize: 256,
     attribution: '© EC JRC / Google',
@@ -105,7 +131,8 @@ export default function MapContent() {
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [routeTarget, setRouteTarget] = useState<Pin | null>(null);
   const [showOverlays, setShowOverlays] = useState(false);
-  const [overlays, setOverlays] = useState({ flood: false });
+  const [mapMode, setMapMode] = useState<MapMode>('standard');
+  const [overlays, setOverlays] = useState({ elevation: false, flood: false });
   const [heading, setHeading] = useState(0);
 
   // Compass heading from magnetometer
@@ -123,20 +150,38 @@ export default function MapContent() {
     return () => { sub?.remove(); };
   }, []);
 
-  // Build map style dynamically so flood layer toggles without remount
-  const mapStyle = useMemo((): StyleSpecification => ({
-    version: 8,
-    sources: BASE_STYLE_SOURCES,
-    layers: [
-      { id: 'carto-dark', type: 'raster', source: 'cartodb' },
-      ...(overlays.flood ? [{
+  // Rebuild style only when mode or overlays change — no full map remount
+  const mapStyle = useMemo((): StyleSpecification => {
+    const layers: StyleSpecification['layers'] = [];
+
+    if (mapMode === 'satellite') {
+      layers.push({ id: 'sat-base', type: 'raster', source: 'esri_sat' });
+      // Road + label overlay makes it a true hybrid
+      layers.push({ id: 'sat-labels', type: 'raster', source: 'esri_labels' });
+    } else {
+      layers.push({ id: 'standard', type: 'raster', source: 'cartodb' });
+    }
+
+    if (overlays.elevation) {
+      layers.push({
+        id: 'relief',
+        type: 'raster',
+        source: 'esri_relief',
+        paint: { 'raster-opacity': mapMode === 'satellite' ? 0.3 : 0.4 },
+      });
+    }
+
+    if (overlays.flood) {
+      layers.push({
         id: 'flood-layer',
-        type: 'raster' as const,
+        type: 'raster',
         source: 'flood',
         paint: { 'raster-opacity': 0.45 },
-      }] : []),
-    ],
-  }), [overlays.flood]);
+      });
+    }
+
+    return { version: 8, sources: ALL_SOURCES, layers };
+  }, [mapMode, overlays.elevation, overlays.flood]);
 
   async function requestLocation() {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -430,7 +475,7 @@ export default function MapContent() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Overlays Modal */}
+      {/* Overlays / Style Modal */}
       <Modal
         visible={showOverlays}
         transparent
@@ -438,8 +483,45 @@ export default function MapContent() {
         onRequestClose={() => setShowOverlays(false)}
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowOverlays(false)}>
-          <View style={[styles.modalSheet, { maxHeight: 260 }]}>
-            <Text style={styles.modalTitle}>Overlays</Text>
+          <View style={[styles.modalSheet, { maxHeight: 420 }]}>
+            <Text style={styles.modalTitle}>Map</Text>
+
+            {/* Style switcher */}
+            <Text style={styles.overlayGroupLabel}>STYLE</Text>
+            <View style={styles.styleRow}>
+              <TouchableOpacity
+                style={[styles.styleChip, mapMode === 'standard' && styles.styleChipActive]}
+                onPress={() => setMapMode('standard')}
+              >
+                <Ionicons name="map-outline" size={20} color={mapMode === 'standard' ? colors.white : colors.textSecondary} />
+                <Text style={[styles.styleChipText, mapMode === 'standard' && { color: colors.white }]}>Standard</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.styleChip, mapMode === 'satellite' && styles.styleChipActive]}
+                onPress={() => setMapMode('satellite')}
+              >
+                <Ionicons name="globe-outline" size={20} color={mapMode === 'satellite' ? colors.white : colors.textSecondary} />
+                <Text style={[styles.styleChipText, mapMode === 'satellite' && { color: colors.white }]}>Satellite</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Overlays */}
+            <Text style={[styles.overlayGroupLabel, { marginTop: spacing.sm }]}>OVERLAYS</Text>
+
+            <TouchableOpacity
+              style={styles.overlayRow}
+              onPress={() => setOverlays((s) => ({ ...s, elevation: !s.elevation }))}
+            >
+              <Ionicons name="triangle-outline" size={20} color="#8E44AD" />
+              <View style={styles.overlayInfo}>
+                <Text style={styles.overlayLabel}>Terrain Elevation</Text>
+                <Text style={styles.overlaySubLabel}>Esri shaded relief · works on both styles</Text>
+              </View>
+              <View style={[styles.overlayToggle, overlays.elevation && { backgroundColor: '#8E44AD' }]}>
+                {overlays.elevation && <Ionicons name="checkmark" size={14} color={colors.white} />}
+              </View>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.overlayRow}
               onPress={() => setOverlays((s) => ({ ...s, flood: !s.flood }))}
@@ -447,7 +529,7 @@ export default function MapContent() {
               <Ionicons name="water-outline" size={20} color="#1ABC9C" />
               <View style={styles.overlayInfo}>
                 <Text style={styles.overlayLabel}>Flood Hazard</Text>
-                <Text style={styles.overlaySubLabel}>Historical water occurrence (JRC)</Text>
+                <Text style={styles.overlaySubLabel}>Historical water occurrence · JRC</Text>
               </View>
               <View style={[styles.overlayToggle, overlays.flood && { backgroundColor: '#1ABC9C' }]}>
                 {overlays.flood && <Ionicons name="checkmark" size={14} color={colors.white} />}
@@ -559,6 +641,37 @@ const styles = StyleSheet.create({
   modalBtnCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: fontSize.md },
   modalBtnSave: { backgroundColor: colors.primary },
   modalBtnSaveText: { color: colors.white, fontWeight: '700', fontSize: fontSize.md },
+  overlayGroupLabel: {
+    color: colors.textDim,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
+  styleRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xs },
+  styleChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+    minHeight: 52,
+  },
+  styleChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  styleChipText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
   overlayRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingVertical: spacing.sm,
