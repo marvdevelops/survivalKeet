@@ -1,4 +1,13 @@
 export type PinType = 'evacuation' | 'hospital' | 'family' | 'highground' | 'custom';
+export type POIType = 'hospital' | 'clinic' | 'pharmacy' | 'police' | 'fire_station' | 'assembly_point';
+
+export interface POI {
+  osm_id: string;
+  type: POIType;
+  name: string;
+  lat: number;
+  lon: number;
+}
 export type MemberType = 'adult' | 'child' | 'baby' | 'pet';
 
 export interface Pin {
@@ -58,6 +67,14 @@ export interface Guide {
   title: string;
   body: string;
   keywords: string;
+}
+
+export interface StoredDocument {
+  id: number;
+  name: string;
+  category: string;
+  uri: string;
+  created_at: string;
 }
 
 export const CREATE_TABLES_SQL = `
@@ -139,6 +156,23 @@ export const CREATE_TABLES_SQL = `
     checked INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'Other',
+    uri TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS poi_cache (
+    osm_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    PRIMARY KEY (osm_id, type)
   );
 
   CREATE TABLE IF NOT EXISTS app_meta (

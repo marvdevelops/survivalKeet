@@ -190,6 +190,7 @@ export default function ChecklistScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.memberScroll}
             contentContainerStyle={styles.memberRow}
           >
             {members.map((m) => {
@@ -205,7 +206,7 @@ export default function ChecklistScreen() {
                 >
                   <Ionicons
                     name={MEMBER_TYPE_ICONS[m.type]}
-                    size={20}
+                    size={16}
                     color={active ? colors.white : color}
                   />
                   <Text style={[styles.memberChipText, active && { color: colors.white }]}>
@@ -243,6 +244,7 @@ export default function ChecklistScreen() {
 
           {/* Checklist */}
           <SectionList
+            style={styles.list}
             sections={sections}
             keyExtractor={(item) => String(item.mc_id)}
             contentContainerStyle={styles.listContent}
@@ -471,20 +473,21 @@ const styles = StyleSheet.create({
   },
   emptyAddText: { color: colors.white, fontSize: fontSize.md, fontWeight: '700' },
 
-  memberRow: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  memberScroll: { flexGrow: 0 },
+  memberRow: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm, alignItems: 'center' },
+  list: { flex: 1 },
   memberChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: 5,
     borderRadius: radius.full,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    minHeight: 48,
   },
-  memberChipText: { color: colors.textSecondary, fontSize: fontSize.md, fontWeight: '700' },
+  memberChipText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '700' },
 
   progressSection: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.xs },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

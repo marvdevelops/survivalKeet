@@ -32,6 +32,10 @@ export function updatePin(
   );
 }
 
+export function movePinLocation(id: number, lat: number, lon: number): void {
+  getDb().runSync('UPDATE pins SET lat = ?, lon = ? WHERE id = ?', lat, lon, id);
+}
+
 export function deletePin(id: number): void {
   getDb().runSync('DELETE FROM pins WHERE id = ?', id);
 }

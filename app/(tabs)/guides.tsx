@@ -139,6 +139,7 @@ export default function GuidesScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.categoryScroll}
           contentContainerStyle={styles.categoryRow}
         >
           {categories.map((cat) => {
@@ -153,7 +154,7 @@ export default function GuidesScreen() {
               >
                 <Ionicons
                   name={CATEGORY_ICONS[cat] ?? 'document-text-outline'}
-                  size={18}
+                  size={16}
                   color={active ? colors.white : color}
                 />
                 <Text style={[styles.categoryChipText, active && { color: colors.white }]}>
@@ -166,6 +167,7 @@ export default function GuidesScreen() {
 
         {/* Guides list */}
         <FlatList
+          style={styles.list}
           data={guides}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
@@ -245,28 +247,30 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     paddingVertical: spacing.md,
   },
+  categoryScroll: { flexGrow: 0 },
   categoryRow: {
     gap: spacing.sm,
     paddingBottom: spacing.md,
     paddingRight: spacing.md,
+    alignItems: 'center',
   },
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: 5,
     borderRadius: radius.full,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    minHeight: 48,
   },
   categoryChipText: {
     color: colors.textSecondary,
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: '700',
   },
+  list: { flex: 1 },
   listContent: { paddingBottom: spacing.xxl },
   guideCard: {
     flexDirection: 'row',

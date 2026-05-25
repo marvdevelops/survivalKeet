@@ -2,25 +2,48 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 import { TipsBanner } from '../../src/components/TipsBanner';
-import { QuickActionButton } from '../../src/components/QuickActionButton';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { getAllMembersSummary, type FamilySummary } from '../../src/services/checklistService';
 
+interface QuickTool {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  color: string;
+  target: string | { pathname: string; params: Record<string, string> };
+}
+
+const QUICK_TOOLS: QuickTool[] = [
+  { icon: 'compass',   label: 'Compass',    color: colors.accent, target: '/(tabs)/compass' },
+  { icon: 'heart',     label: 'CPR Timer',  color: colors.danger, target: { pathname: '/(tabs)/tools', params: { open: 'cpr' } } },
+  { icon: 'sunny',     label: 'Flashlight', color: '#F39C12',     target: { pathname: '/(tabs)/tools', params: { open: 'flashlight' } } },
+  { icon: 'documents', label: 'Documents',  color: '#3498DB',     target: { pathname: '/(tabs)/tools', params: { open: 'documents' } } },
+];
+
+async function call911() {
+  const url = 'tel:911';
+  const supported = await Linking.canOpenURL(url);
+  if (supported) {
+    await Linking.openURL(url);
+  } else {
+    Alert.alert('Call 911', 'Dial 911 for emergency assistance.');
+  }
+}
+
 export default function HomeScreen() {
   const router = useRouter();
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<FamilySummary[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -28,35 +51,19 @@ export default function HomeScreen() {
     setSummaries(getAllMembersSummary());
   }, []);
 
-  // Refresh go-bag summary every time the tab comes into focus
   useFocusEffect(useCallback(() => {
     load();
   }, [load]));
 
-  async function requestLocation() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      setLocationError('Location permission denied');
-      return;
-    }
-    try {
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setLocation(loc);
-    } catch {
-      setLocationError('Unable to get location');
-    }
-  }
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     load();
-    await requestLocation();
     setRefreshing(false);
   }, [load]);
 
   const totalChecked = summaries.reduce((s, m) => s + m.checked, 0);
-  const totalItems = summaries.reduce((s, m) => s + m.total, 0);
-  const readinessPercent = totalItems > 0 ? Math.round((totalChecked / totalItems) * 100) : 0;
+  const totalItems   = summaries.reduce((s, m) => s + m.total, 0);
+  const readiness    = totalItems > 0 ? Math.round((totalChecked / totalItems) * 100) : 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -64,81 +71,65 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header — horizontal logo */}
         <View style={styles.header}>
-          <Text style={styles.appName}>SurviveKit</Text>
-          <Text style={styles.tagline}>Offline survival guide · Philippines</Text>
+          <View style={styles.logoRow}>
+            <Image
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              source={require('../../assets/icon.png')}
+              style={styles.logoIcon}
+              resizeMode="cover"
+            />
+            <View>
+              <View style={styles.logoNameRow}>
+                <Text style={styles.logoNameBold}>Survival</Text>
+                <Text style={styles.logoNameLight}>Kit</Text>
+              </View>
+              <Text style={styles.tagline}>Offline survival guide · Worldwide</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Survival Tips */}
+        {/* ── Survival Tips ─────────────────────────────────────────────────── */}
         <SectionHeader title="Survival Tip" />
         <TipsBanner />
 
-        {/* Quick Actions */}
-        <SectionHeader title="Quick Actions" />
-        <View style={styles.quickActions}>
-          <QuickActionButton
-            icon="map"
-            label="Map"
-            color={colors.success}
-            onPress={() => router.push('/(tabs)/map')}
-          />
-          <QuickActionButton
-            icon="call"
-            label="SOS"
-            color={colors.primary}
-            onPress={() => router.push('/(tabs)/sos')}
-          />
-          <QuickActionButton
-            icon="compass"
-            label="Compass"
-            color={colors.accent}
-            onPress={() => router.push('/(tabs)/compass')}
-          />
-          <QuickActionButton
-            icon="location"
-            label="Locations"
-            color="#8E44AD"
-            onPress={() => router.push('/(tabs)/map')}
-          />
+        {/* ── Quick Tools ───────────────────────────────────────────────────── */}
+        <SectionHeader title="Quick Tools" />
+        <View style={styles.quickToolsGrid}>
+          {QUICK_TOOLS.map((t) => (
+            <TouchableOpacity
+              key={t.label}
+              style={styles.quickToolBtn}
+              onPress={() => router.push(t.target as Parameters<typeof router.push>[0])}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.quickToolIcon, { backgroundColor: t.color + '25' }]}>
+                <Ionicons name={t.icon} size={26} color={t.color} />
+              </View>
+              <Text style={styles.quickToolLabel}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Location Status */}
-        <SectionHeader title="Location Status" />
-        <View style={styles.locationCard}>
-          <Ionicons
-            name={location ? 'location' : 'location-outline'}
-            size={20}
-            color={location ? colors.success : locationError ? colors.danger : colors.textSecondary}
-          />
-          {location ? (
-            <View style={styles.locationInfo}>
-              <Text style={styles.locationCoords}>
-                {location.coords.latitude.toFixed(5)}, {location.coords.longitude.toFixed(5)}
-              </Text>
-              <Text style={styles.locationAccuracy}>
-                Accuracy ±{Math.round(location.coords.accuracy ?? 0)}m
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.locationError}>
-              {locationError ?? 'Getting location…'}
-            </Text>
-          )}
-          <TouchableOpacity onPress={requestLocation} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="refresh" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        {/* ── Emergency 911 ─────────────────────────────────────────────────── */}
+        <SectionHeader title="Emergency" />
+        <TouchableOpacity style={styles.emergencyBtn} onPress={call911} activeOpacity={0.85}>
+          <View style={styles.emergencyIconWrap}>
+            <Ionicons name="call" size={28} color={colors.white} />
+          </View>
+          <View style={styles.emergencyInfo}>
+            <Text style={styles.emergencyLabel}>Call 911</Text>
+            <Text style={styles.emergencyDesc}>Emergency hotline — Philippines</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.white + 'AA'} />
+        </TouchableOpacity>
 
-        {/* Checklist Summary */}
+        {/* ── Go-Bag Readiness ──────────────────────────────────────────────── */}
         <SectionHeader
           title="Go-Bag Readiness"
           right={
@@ -150,16 +141,16 @@ export default function HomeScreen() {
 
         {summaries.length === 0 ? (
           <TouchableOpacity
-            style={styles.emptyChecklist}
+            style={styles.emptyGoBag}
             onPress={() => router.push('/(tabs)/checklist')}
           >
             <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-            <Text style={styles.emptyChecklistText}>Add family members to track go-bags</Text>
+            <Text style={styles.emptyGoBagText}>Add family members to track go-bags</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.readinessCard}>
             <View style={styles.readinessRow}>
-              <Text style={styles.readinessPercent}>{readinessPercent}%</Text>
+              <Text style={styles.readinessPct}>{readiness}%</Text>
               <Text style={styles.readinessLabel}>
                 {totalChecked}/{totalItems} items packed
               </Text>
@@ -169,11 +160,11 @@ export default function HomeScreen() {
                 style={[
                   styles.progressFill,
                   {
-                    width: `${readinessPercent}%` as `${number}%`,
+                    width: `${readiness}%` as `${number}%`,
                     backgroundColor:
-                      readinessPercent >= 80
+                      readiness >= 80
                         ? colors.success
-                        : readinessPercent >= 50
+                        : readiness >= 50
                         ? colors.accent
                         : colors.danger,
                   },
@@ -183,9 +174,7 @@ export default function HomeScreen() {
             {summaries.map((s) => (
               <View key={s.memberId} style={styles.memberRow}>
                 <Text style={styles.memberName}>{s.memberName}</Text>
-                <Text style={styles.memberProgress}>
-                  {s.checked}/{s.total}
-                </Text>
+                <Text style={styles.memberProg}>{s.checked}/{s.total}</Text>
               </View>
             ))}
           </View>
@@ -196,48 +185,79 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  scroll: { flex: 1 },
+  safe:    { flex: 1, backgroundColor: colors.background },
+  scroll:  { flex: 1 },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
+
   header: { marginBottom: spacing.xl },
-  appName: {
-    color: colors.text,
-    fontSize: fontSize.display,
-    fontWeight: '800',
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  logoIcon: { width: 48, height: 48, borderRadius: 11 },
+  logoNameRow: { flexDirection: 'row', alignItems: 'baseline' },
+  logoNameBold: {
+    color: colors.primary,
+    fontSize: 28,
+    fontWeight: '900',
     letterSpacing: -0.5,
   },
-  tagline: {
+  logoNameLight: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    marginTop: spacing.xs,
+    fontSize: 28,
+    fontWeight: '300',
+    letterSpacing: -0.5,
   },
-  quickActions: {
+  tagline: { color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 1 },
+
+  // ── Quick Tools grid ────────────────────────────────────────────────────────
+  quickToolsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
     marginBottom: spacing.lg,
+    justifyContent: 'space-between',
   },
-  locationCard: {
+  quickToolBtn: { alignItems: 'center', gap: spacing.xs, flex: 1 },
+  quickToolIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickToolLabel: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  // ── Emergency 911 ───────────────────────────────────────────────────────────
+  emergencyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.md,
+    backgroundColor: colors.danger,
+    borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
-  locationInfo: { flex: 1 },
-  locationCoords: { color: colors.text, fontSize: fontSize.sm, fontWeight: '600' },
-  locationAccuracy: { color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 },
-  locationError: { color: colors.textSecondary, fontSize: fontSize.sm, flex: 1 },
+  emergencyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.md,
+    backgroundColor: colors.white + '25',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyInfo: { flex: 1 },
+  emergencyLabel: { color: colors.white, fontSize: fontSize.lg, fontWeight: '800' },
+  emergencyDesc:  { color: colors.white + 'CC', fontSize: fontSize.xs, marginTop: 2 },
+
+  // ── Go-Bag ──────────────────────────────────────────────────────────────────
   seeAll: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '600' },
-  emptyChecklist: {
+  emptyGoBag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -250,10 +270,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     justifyContent: 'center',
   },
-  emptyChecklistText: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-  },
+  emptyGoBagText: { color: colors.textSecondary, fontSize: fontSize.sm },
   readinessCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -263,30 +280,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     gap: spacing.sm,
   },
-  readinessRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: spacing.sm,
-  },
-  readinessPercent: {
-    color: colors.text,
-    fontSize: fontSize.xxl,
-    fontWeight: '800',
-  },
-  readinessLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-  },
+  readinessRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  readinessPct: { color: colors.text, fontSize: fontSize.xxl, fontWeight: '800' },
+  readinessLabel: { color: colors.textSecondary, fontSize: fontSize.sm },
   progressBar: {
     height: 6,
     backgroundColor: colors.surfaceElevated,
     borderRadius: radius.full,
     overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: radius.full,
-  },
+  progressFill: { height: '100%', borderRadius: radius.full },
   memberRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -296,5 +299,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   memberName: { color: colors.text, fontSize: fontSize.sm },
-  memberProgress: { color: colors.textSecondary, fontSize: fontSize.sm },
+  memberProg: { color: colors.textSecondary, fontSize: fontSize.sm },
 });

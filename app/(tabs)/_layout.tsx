@@ -10,13 +10,15 @@ const TAB_ITEMS: {
   icon: IoniconName;
   iconFocused: IoniconName;
 }[] = [
-  { name: 'index', title: 'Home', icon: 'home-outline', iconFocused: 'home' },
-  { name: 'map', title: 'Map', icon: 'map-outline', iconFocused: 'map' },
-  { name: 'compass', title: 'Compass', icon: 'compass-outline', iconFocused: 'compass' },
-  { name: 'sos', title: 'SOS', icon: 'call-outline', iconFocused: 'call' },
-  { name: 'guides', title: 'Guides', icon: 'book-outline', iconFocused: 'book' },
-  { name: 'checklist', title: 'Checklist', icon: 'checkbox-outline', iconFocused: 'checkbox' },
+  { name: 'index',    title: 'Home',   icon: 'home-outline',    iconFocused: 'home'    },
+  { name: 'map',      title: 'Map',    icon: 'map-outline',     iconFocused: 'map'     },
+  { name: 'tools',    title: 'Tools',  icon: 'construct-outline', iconFocused: 'construct' },
+  { name: 'sos',      title: 'SOS',    icon: 'call-outline',    iconFocused: 'call'    },
+  { name: 'guides',   title: 'Guides', icon: 'book-outline',    iconFocused: 'book'    },
 ];
+
+// Screens that exist as routes but are hidden from the tab bar
+const HIDDEN_SCREENS = ['compass', 'checklist'];
 
 export default function TabLayout() {
   return (
@@ -53,6 +55,14 @@ export default function TabLayout() {
               />
             ),
           }}
+        />
+      ))}
+
+      {HIDDEN_SCREENS.map((name) => (
+        <Tabs.Screen
+          key={name}
+          name={name}
+          options={{ href: null }}
         />
       ))}
     </Tabs>

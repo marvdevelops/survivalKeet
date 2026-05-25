@@ -50,46 +50,47 @@ Family plan:
 - All family members should memorize emergency contact numbers.
 - Practice Drop, Cover, Hold On at least twice a year.
 
-After a major earthquake in the Philippines:
-- PHIVOLCS will issue a bulletin within 10 minutes.
+After a major earthquake:
+- Local emergency services will issue safety bulletins.
 - Coastal areas: immediately move to higher ground (tsunami risk).
-- Do not re-enter damaged buildings until declared safe.`,
+- Do not re-enter damaged buildings until declared safe by authorities.`,
   },
 
-  // ─── TYPHOON ────────────────────────────────────────────────────────────────
+  // ─── TROPICAL CYCLONE ───────────────────────────────────────────────────────
   {
     category: 'Typhoon',
-    title: 'Typhoon Signal Levels (PSWS)',
-    keywords: 'typhoon bagyo signal PSWS warning wind bagyong',
-    body: `Philippine Public Storm Warning Signals (PSWS)
+    title: 'Tropical Cyclone / Hurricane Categories',
+    keywords: 'typhoon hurricane cyclone category wind speed warning saffir simpson',
+    body: `Tropical Cyclone Categories (Saffir-Simpson Scale)
 
-Signal No. 1:
-- Winds 30–60 km/h expected within 36 hours.
-- Minimal threat. Monitor updates. Prepare go-bag.
+Tropical Depression:
+- Winds < 63 km/h. Monitor weather updates. Prepare go-bag.
 
-Signal No. 2:
-- Winds 61–120 km/h expected within 24 hours.
-- Moderate threat. Secure loose objects. Be ready to evacuate.
+Tropical Storm:
+- Winds 63–118 km/h. Secure loose objects. Be ready to evacuate.
 
-Signal No. 3:
-- Winds 121–170 km/h expected within 18 hours.
-- High threat. Evacuate immediately if in danger zones.
+Category 1 Hurricane / Typhoon:
+- Winds 119–153 km/h. Minimal structural damage expected. Evacuate mobile homes.
 
-Signal No. 4:
-- Winds 171–220 km/h expected within 12 hours.
-- Very high threat. Complete evacuation of high-risk areas.
+Category 2:
+- Winds 154–177 km/h. Moderate damage. Evacuate high-risk areas.
 
-Signal No. 5:
-- Winds >220 km/h expected.
-- Catastrophic. Evacuation must have been completed already.
+Category 3 (Major):
+- Winds 178–208 km/h. Significant damage. Evacuate low-lying and coastal areas.
 
-Source: PAGASA (pagasa.dost.gov.ph)`,
+Category 4 (Major):
+- Winds 209–251 km/h. Severe damage. Complete evacuation of danger zones.
+
+Category 5 (Major):
+- Winds > 252 km/h. Catastrophic damage. Evacuation must be completed before landfall.
+
+Note: Cyclones are called "Typhoons" in Asia, "Hurricanes" in the Atlantic/Eastern Pacific, and "Cyclones" in the Indian Ocean and South Pacific.`,
   },
   {
     category: 'Typhoon',
-    title: 'What to Do During a Typhoon',
-    keywords: 'typhoon bagyo during shelter flood storm surge wind',
-    body: `During a Typhoon
+    title: 'What to Do During a Tropical Cyclone',
+    keywords: 'typhoon hurricane cyclone during shelter flood storm surge wind',
+    body: `During a Tropical Cyclone
 
 Before it arrives:
 - Fill containers with clean water — supply may be cut off.
@@ -97,17 +98,17 @@ Before it arrives:
 - Stock up on medicines and food.
 - Secure or bring in all outdoor objects.
 
-During the typhoon:
+During the cyclone:
 - Stay indoors, away from windows.
-- Do NOT go outside during the eye of the typhoon — it will resume.
+- Do NOT go outside during the eye of the storm — dangerous winds will resume.
 - Avoid flooded areas — even shallow water can be dangerous.
 - Do NOT cross rivers or flooded roads.
 
 Storm surge warning:
 - Storm surge can be more deadly than wind.
-- If you are in a coastal area under Signal 3+, EVACUATE EARLY.
+- If in a coastal area during a major cyclone, EVACUATE EARLY — inland or to high ground.
 
-After the typhoon:
+After the cyclone:
 - Wait for official all-clear before going outside.
 - Avoid downed power lines.
 - Do NOT drink flood water.`,
@@ -142,7 +143,7 @@ After the flood:
     keywords: 'leptospirosis flood water rat urine bacteria prevention',
     body: `Leptospirosis After a Flood
 
-Leptospirosis is a bacterial infection spread through water contaminated by animal urine. It is common after floods in the Philippines.
+Leptospirosis is a bacterial infection spread through water contaminated by animal urine. It is common after floods worldwide, especially in tropical and subtropical regions.
 
 Symptoms (2–30 days after exposure):
 - High fever
@@ -176,7 +177,7 @@ GET OUT — STAY OUT — CALL FOR HELP
 If you discover a fire:
 1. Alert everyone in the building.
 2. Activate the nearest fire alarm.
-3. Call 911 or the Bureau of Fire: 8426-0246.
+3. Call your local emergency number (112 / 911 / 999 / 000).
 4. Evacuate using stairs — NEVER use the elevator.
 
 During evacuation:
@@ -315,7 +316,7 @@ Chemical burns:
   {
     category: 'Evacuation',
     title: 'How to Evacuate Safely',
-    keywords: 'evacuate evacuation center barangay leave home plan route',
+    keywords: 'evacuate evacuation center leave home plan route emergency shelter',
     body: `Evacuation Guide
 
 Before you leave:
@@ -331,7 +332,7 @@ Route planning:
 - Avoid flood-prone roads.
 
 At the evacuation center:
-- Register with barangay officials.
+- Register with local emergency officials or staff.
 - Keep your go-bag with you at all times.
 
 If you have a vehicle:
@@ -357,7 +358,7 @@ Steps to create your plan:
 
 2. Choose two meeting places:
    - Near your home (corner store, front gate): for sudden emergencies.
-   - Outside your neighborhood (barangay hall, relative's house): for evacuation.
+   - Outside your neighborhood (community center, relative's house): for evacuation.
 
 3. Each family member should know:
    - The out-of-area contact's number (memorized or written).
@@ -523,8 +524,9 @@ Stay put if possible:
     body: `Finding Your Way Without GPS
 
 Using the Sun:
-- In the Philippines (Northern Hemisphere), the sun rises roughly in the east and sets in the west.
-- At noon, the sun is roughly in the south.
+- The sun rises roughly in the east and sets in the west everywhere on Earth.
+- Northern Hemisphere: at noon, the sun is roughly in the south.
+- Southern Hemisphere: at noon, the sun is roughly in the north.
 - Shadow stick method:
   1. Place a stick vertically in the ground.
   2. Mark the tip of the shadow.
@@ -533,15 +535,17 @@ Using the Sun:
   5. Draw a line between them: you now have an east-west line.
 
 Using Stars at Night:
-- Southern Cross (Crux): visible year-round in the Philippines.
+- Northern Hemisphere — Polaris (North Star):
+  - Find the Big Dipper; follow the two outer stars of the "cup" 5× their distance — that's Polaris.
+  - Polaris sits almost directly above the North Pole. Stand facing it to face north.
+- Southern Hemisphere — Southern Cross (Crux):
   - Extend the long axis of the cross 4.5 times to find the South Celestial Pole.
   - Drop straight down to the horizon — that's south.
-- Polaris (North Star): faint in the Philippines but visible — look north of the constellation Orion.
 
-Using a Watch:
-- Point the 12 o'clock position at the sun.
-- The halfway point between 12 and the hour hand points roughly south.
-(Works best in tropical/equatorial zones like the Philippines.)
+Using a Watch (Northern Hemisphere):
+- Point the hour hand at the sun.
+- The halfway point between the hour hand and 12 o'clock points roughly south.
+(In Southern Hemisphere, point the 12 o'clock at the sun; halfway between 12 and hour hand = north.)
 
 Landmarks and terrain:
 - Rivers generally flow downhill toward the coast or lowland areas.
@@ -584,10 +588,10 @@ Preparing food safely:
   {
     category: 'Survival',
     title: 'Dengue Fever Prevention',
-    keywords: 'dengue mosquito fever prevention Philippines aedes symptoms',
-    body: `Dengue Fever Prevention (Philippines)
+    keywords: 'dengue mosquito fever prevention tropical aedes symptoms',
+    body: `Dengue Fever Prevention
 
-Dengue is a major health risk in the Philippines, especially after flooding or during rainy season.
+Dengue is common in tropical and subtropical regions worldwide, especially after flooding or during rainy season.
 
 How it spreads:
 - Transmitted by the Aedes mosquito, which bites during the day.
@@ -717,7 +721,7 @@ MOSQUITO / GENERAL INSECT BITES
 - Avoid scratching to prevent infection.
 - Watch for signs of dengue (see Dengue guide) 5–7 days after.
 
-CENTIPEDE BITES (PHILIPPINES)
+CENTIPEDE BITES
 - Painful but rarely dangerous. Wash with soap and water.
 - Apply cold compress. Elevate the limb.
 - Ibuprofen or paracetamol for pain.
@@ -727,9 +731,8 @@ CENTIPEDE BITES (PHILIPPINES)
     category: 'First Aid',
     title: 'Snake Bite Protocol',
     keywords: 'snake bite ahas venom cobra python king cobra sea snake antivenom',
-    body: `THE PHILIPPINES HAS SEVERAL VENOMOUS SNAKES
-Including: Philippine cobra, king cobra, sea snakes, and pit vipers.
-Every bite must be treated as potentially venomous until confirmed otherwise.
+    body: `TREAT EVERY SNAKE BITE AS POTENTIALLY VENOMOUS.
+Venomous species exist on every continent except Antarctica — cobras, vipers, mambas, rattlesnakes, and sea snakes are found worldwide.
 
 IMMEDIATE STEPS
 1. Move the victim away from the snake. Do NOT attempt to catch or kill it.
@@ -747,7 +750,7 @@ DO NOT:
 - Give alcohol or stimulants.
 - Leave the victim alone.
 
-PRESSURE IMMOBILIZATION (for neurotoxic snakes like cobra)
+PRESSURE IMMOBILIZATION (for neurotoxic snakes like cobras and mambas)
 - Wrap the entire limb with an elastic bandage, starting at the fingers/toes.
 - Wrap firmly (like a sprained ankle) — NOT as tight as a tourniquet.
 - Apply a splint to prevent movement.
@@ -760,7 +763,7 @@ WARNING SIGNS — RUSH TO HOSPITAL
 - Vomiting, collapse, or loss of consciousness.
 - Numbness or paralysis.
 
-PHILIPPINES POISON CONTROL: (02) 8524-1078`,
+IMPORTANT: Save your local Poison Control number as an emergency contact in the SOS tab.`,
   },
   {
     category: 'First Aid',
