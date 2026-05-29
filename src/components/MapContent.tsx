@@ -198,22 +198,6 @@ function saveLastKnownLocation(lat: number, lon: number) {
   } catch {}
 }
 
-// Whether the one-time automatic area download has already completed for this install.
-function isAutoDownloadDone(): boolean {
-  try {
-    const meta = getDb().getFirstSync<{ value: string }>(
-      "SELECT value FROM app_meta WHERE key = 'auto_download_done'"
-    );
-    return !!meta;
-  } catch { return false; }
-}
-
-function markAutoDownloadDone() {
-  try {
-    getDb().runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('auto_download_done', '1')");
-  } catch {}
-}
-
 // Remove the legacy opt-in flag written by older onboarding builds (no longer used).
 function clearStaleAutoDownloadPending() {
   try {
@@ -279,10 +263,9 @@ export default function MapContent() {
   const [dlProgress, setDlProgress] = useState(0);
   const [offlinePacks, setOfflinePacks] = useState<OfflinePack[]>([]);
 
-  // One-time auto-download gating: only fire once the map is loaded AND focused.
+  // Map readiness + focus, used to gate the download-prompt sheet.
   const [mapLoaded, setMapLoaded] = useState(false);
   const [screenFocused, setScreenFocused] = useState(false);
-  const autoDlAttempted = useRef(false);
 
   // When opened from the preparedness checklist ("Offline Map" item), this param
   // is set so we surface the download sheet automatically.
@@ -417,23 +400,11 @@ export default function MapContent() {
     }, []),
   );
 
-  // One-time automatic area download.
-  // Fires only when ALL of these hold, which guarantees the native map context is
-  // alive and the user is actually viewing the Map (never at launch in the background):
-  //   • the Map tab is focused
-  //   • the map has finished loading (onDidFinishLoadingMap)
-  //   • we have a GPS fix to center the pack on
-  //   • it hasn't already run this install
-  useEffect(() => {
-    if (autoDlAttempted.current) return;
-    if (!screenFocused || !mapLoaded || !userLocation) return;
-    if (isAutoDownloadDone()) { autoDlAttempted.current = true; return; }
-
-    autoDlAttempted.current = true; // guard against re-entry within this session
-    const [lng, lat] = userLocation;
-    triggerAutoDownload(lng, lat);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenFocused, mapLoaded, userLocation]);
+  // NOTE: automatic offline-pack download is intentionally DISABLED.
+  // Auto-firing OfflineManager.createPack() as soon as a GPS fix arrives was the
+  // cause of the "crash whenever location is on" regression. Offline packs are now
+  // created only by an explicit user action — the download button / the
+  // preparedness "Offline Map" item, which opens the sheet (see effect below).
 
   // Arriving from the preparedness checklist with ?action=download: open the
   // download sheet once the map is ready so the user can grab their area offline.
@@ -491,41 +462,6 @@ export default function MapContent() {
   }
 
   useEffect(() => { loadPacks(); }, []);
-
-  async function triggerAutoDownload(lng: number, lat: number) {
-    // Medium preset: ~50 km box at zoom 8-14. Small enough to be stable on launch-day
-    // devices, large enough to cover the user's surrounding area offline.
-    const d = 0.25;
-    const minZoom = 8;
-    const maxZoom = 14;
-    const packName = `auto_${Date.now()}`;
-    setDlActive(true);
-    setDlProgress(0);
-    try {
-      const styleUri = getOfflineStyleUri();
-      await OfflineManager.createPack(
-        { mapStyle: styleUri,
-          bounds: [lng - d, lat - d, lng + d, lat + d],
-          minZoom, maxZoom,
-          metadata: { name: packName, size: 'medium', auto: true, createdAt: new Date().toISOString() } },
-        (_pack: OfflinePack, status: OfflinePackStatus) => {
-          setDlProgress(Math.round(status.percentage ?? 0));
-          if (status.state === 'complete' || status.percentage >= 100) {
-            setDlActive(false);
-            markAutoDownloadDone(); // only persist success — offline failures retry next visit
-            loadPacks();
-          }
-        },
-        (_pack: OfflinePack, error: { message: string }) => {
-          setDlActive(false);
-          console.warn('Auto-download failed:', error.message);
-        }
-      );
-    } catch (e) {
-      setDlActive(false);
-      console.warn('Auto-download createPack error:', e);
-    }
-  }
 
   async function startDownload() {
     if (!userLocation) {
