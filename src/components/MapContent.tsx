@@ -225,8 +225,11 @@ export default function MapContent() {
   const initialLocation = useRef(getLastKnownLocation());
   // Prevents map onPress from firing when a marker is tapped (MapLibre propagates both)
   const markerPressGuard = useRef(false);
-  // Holds the active location subscription so we can clean up on unmount
-  const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
+  // Polling timer for location updates. We poll getLastKnownPositionAsync instead of
+  // using watchPositionAsync: the latter sets up a native event subscription (a
+  // TurboModule "void" method) which crashes on iOS 26 + New Architecture release
+  // builds (RN performVoidMethodInvocation rethrow bug, facebook/react-native#54859).
+  const locationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [pins, setPins] = useState<Pin[]>(() => getAllPins());
   const [stagingPin, setStagingPin] = useState<StagingPin | null>(null);
@@ -335,38 +338,40 @@ export default function MapContent() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return;
 
+    const applyPosition = (lat: number, lon: number) => {
+      setUserLocation([lon, lat]);
+      saveLastKnownLocation(lat, lon);
+    };
+
     // Step 1: use cached position instantly — works offline with no GPS warm-up
     const last = await Location.getLastKnownPositionAsync();
     let initialCoords: [number, number] | undefined;
     if (last) {
       initialCoords = [last.coords.longitude, last.coords.latitude];
-      setUserLocation(initialCoords);
-      saveLastKnownLocation(last.coords.latitude, last.coords.longitude);
+      applyPosition(last.coords.latitude, last.coords.longitude);
     }
 
-    // Step 2: start a continuous GPS watch.
-    // watchPositionAsync delivers fixes as the GPS chip locks in — works fully
-    // offline. Unlike getCurrentPositionAsync with Balanced accuracy, it never
-    // hangs waiting for a network-assisted fix that will never arrive.
-    locationWatchRef.current?.remove();
-    locationWatchRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 4000,      // at most every 4 s
-        distanceInterval: 10,    // or every 10 m moved
-      },
-      (loc) => {
-        const coords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
-        setUserLocation(coords);
-        saveLastKnownLocation(loc.coords.latitude, loc.coords.longitude);
-      },
-    );
+    // Step 2: poll for position updates instead of watchPositionAsync.
+    // watchPositionAsync subscribes to a native location-event stream via a
+    // TurboModule "void" addListener method, which crashes on iOS 26 + New Arch
+    // release builds (RN performVoidMethodInvocation rethrow bug, RN#54859).
+    // getLastKnownPositionAsync is a plain promise method, so polling it sidesteps
+    // that broken path entirely.
+    if (locationPollRef.current) clearInterval(locationPollRef.current);
+    locationPollRef.current = setInterval(async () => {
+      try {
+        const pos = await Location.getLastKnownPositionAsync();
+        if (pos) applyPosition(pos.coords.latitude, pos.coords.longitude);
+      } catch { /* ignore transient location errors */ }
+    }, 5000);
 
     return initialCoords;
   }
 
-  // Stop tracking when the map unmounts to avoid a memory / battery leak
-  useEffect(() => () => { locationWatchRef.current?.remove(); }, []);
+  // Stop polling when the map unmounts to avoid a battery / timer leak
+  useEffect(() => () => {
+    if (locationPollRef.current) clearInterval(locationPollRef.current);
+  }, []);
 
   function flyToUser() {
     if (userLocation) {

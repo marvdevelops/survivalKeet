@@ -103,7 +103,7 @@ export function EmergencyModeScreen() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    let watchSub: Location.LocationSubscription | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     (async () => {
       try {
@@ -120,21 +120,25 @@ export function EmergencyModeScreen() {
           return;
         }
 
-        // Use only the cached position for the instant value — getCurrentPositionAsync
-        // can crash/hang on new arch. The watch below delivers live fixes shortly after.
+        // Poll the cached position instead of watchPositionAsync. The watch sets up a
+        // native location-event subscription (a TurboModule "void" method) that crashes
+        // on iOS 26 + New Architecture release builds (RN#54859). getLastKnownPositionAsync
+        // is a plain promise method, so polling it avoids the crash.
         const pos = await Location.getLastKnownPositionAsync();
         if (pos) {
           setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         }
 
-        watchSub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.Balanced, timeInterval: 30_000, distanceInterval: 50 },
-          (p) => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude })
-        );
+        pollTimer = setInterval(async () => {
+          try {
+            const p = await Location.getLastKnownPositionAsync();
+            if (p) setCoords({ lat: p.coords.latitude, lng: p.coords.longitude });
+          } catch { /* ignore transient location errors */ }
+        }, 10000);
       } catch { /* fail silently */ }
     })();
 
-    return () => { watchSub?.remove(); };
+    return () => { if (pollTimer) clearInterval(pollTimer); };
   }, []);
 
   // ── Torch / SOS flash / audio alarm ─────────────────────────────────────────

@@ -54,6 +54,9 @@ function labelPos(angleDeg: number, halfW = 8, halfH = 10) {
 export default function CompassScreen() {
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const lastHeading = useRef(0);
+  // Poll timer for location (see startLocation — avoids watchPositionAsync's
+  // crashing native void-method subscription on iOS 26 + New Architecture).
+  const locationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [heading, setHeading] = useState(0);
   const [accuracy, setAccuracy] = useState<'high' | 'medium' | 'low'>('low');
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -67,7 +70,10 @@ export default function CompassScreen() {
     loadLocations();
     startCompass();
     startLocation();
-    return () => { Magnetometer.removeAllListeners(); };
+    return () => {
+      Magnetometer.removeAllListeners();
+      if (locationPollRef.current) clearInterval(locationPollRef.current);
+    };
   }, []);
 
   function loadLocations() {
@@ -96,14 +102,25 @@ export default function CompassScreen() {
   async function startLocation() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return;
-    Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, distanceInterval: 5 },
-      (loc) => {
-        setCoords({ lat: loc.coords.latitude, lon: loc.coords.longitude });
-        const acc = loc.coords.accuracy ?? 100;
-        setAccuracy(acc <= 10 ? 'high' : acc <= 30 ? 'medium' : 'low');
-      }
-    );
+
+    const apply = (lat: number, lon: number, acc: number) => {
+      setCoords({ lat, lon });
+      setAccuracy(acc <= 10 ? 'high' : acc <= 30 ? 'medium' : 'low');
+    };
+
+    // Poll getLastKnownPositionAsync instead of watchPositionAsync. The watch
+    // subscribes to a native location-event stream via a TurboModule "void" method,
+    // which crashes on iOS 26 + New Architecture release builds (RN#54859).
+    const last = await Location.getLastKnownPositionAsync();
+    if (last) apply(last.coords.latitude, last.coords.longitude, last.coords.accuracy ?? 100);
+
+    if (locationPollRef.current) clearInterval(locationPollRef.current);
+    locationPollRef.current = setInterval(async () => {
+      try {
+        const pos = await Location.getLastKnownPositionAsync();
+        if (pos) apply(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? 100);
+      } catch { /* ignore transient location errors */ }
+    }, 5000);
   }
 
   function handleSaveLocation() {
