@@ -107,13 +107,7 @@ export function EmergencyModeScreen() {
 
     (async () => {
       try {
-        // Check permission first — calling requestForegroundPermissionsAsync() when
-        // already granted can cause a native crash on new arch.
-        const { status: existing } = await Location.getForegroundPermissionsAsync();
-        let status = existing;
-        if (existing !== 'granted') {
-          ({ status } = await Location.requestForegroundPermissionsAsync());
-        }
+        const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           Alert.alert(
             'Location access needed',

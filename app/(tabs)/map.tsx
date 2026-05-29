@@ -1,49 +1,20 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TurboModuleRegistry } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TurboModuleRegistry } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 
-// CRITICAL: nothing from MapLibre may be touched at app launch.
-// Importing '@maplibre/maplibre-react-native' (and even probing its TurboModule)
-// initializes the native MapLibre SDK, which reads its offline-pack database. On
-// the new architecture that init crashes at startup once an offline pack exists.
-// Tab route modules are imported eagerly by expo-router at launch, so we must NOT
-// `require()` MapContent (or call TurboModuleRegistry) at module scope here.
-// Instead we resolve everything lazily, only when the user first opens this tab.
-type Resolved = { available: boolean; Comp: React.ComponentType | null };
+// MapLibre requires native modules compiled into the app.
+// In Expo Go these are absent — check before importing.
+const MAP_AVAILABLE = !!TurboModuleRegistry.get('MLRNCameraModule');
+
+// Lazy require so MapLibre code never loads in Expo Go
+const MapContent: React.ComponentType | null = MAP_AVAILABLE
+  ? (require('../../src/components/MapContent').default as React.ComponentType)
+  : null;
 
 export default function MapScreen() {
-  const [resolved, setResolved] = useState<Resolved | null>(null);
-  const resolvedRef = useRef(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (resolvedRef.current) return; // resolve once, then keep mounted across tab switches
-      resolvedRef.current = true;
-      // First open of the Map tab: NOW it's safe to touch MapLibre (foreground,
-      // user-initiated). Probe the native module and load the heavy map component.
-      const available = !!TurboModuleRegistry.get('MLRNCameraModule');
-      const Comp = available
-        ? (require('../../src/components/MapContent').default as React.ComponentType)
-        : null;
-      setResolved({ available, Comp });
-    }, []),
-  );
-
-  // Tab not opened yet — MapLibre is completely untouched.
-  if (!resolved) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!resolved.available || !resolved.Comp) {
+  if (!MAP_AVAILABLE || !MapContent) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.container}>
@@ -68,17 +39,15 @@ export default function MapScreen() {
     );
   }
 
-  const Comp = resolved.Comp;
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Comp />
+      <MapContent />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: {
     flex: 1,
     alignItems: 'center',

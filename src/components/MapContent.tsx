@@ -114,13 +114,9 @@ const OFFLINE_RASTER_STYLE = JSON.stringify({
 
 // Write the raster style JSON to a local file so MapLibre can use its
 // file:// URI as the style URL for offline pack creation.
-// IMPORTANT: this must live in PERSISTENT storage (document dir), not the cache
-// dir. An offline pack stores this file:// path as its style URL, and MapLibre
-// reads every saved region's metadata when its offline DB initializes at launch.
-// iOS purges the Caches directory between launches, so a cache-dir path would
-// become a dangling file:// reference and can crash MapLibre on the next launch.
+// (Reverted to the cache dir — the known-good 66ee602 behavior.)
 function getOfflineStyleUri(): string {
-  const file = new File(Paths.document, 'map_offline_style.json');
+  const file = new File(Paths.cache, 'map_offline_style.json');
   file.write(OFFLINE_RASTER_STYLE);
   return file.uri;
 }
@@ -353,13 +349,8 @@ export default function MapContent() {
   }, [userLocation]);
 
   async function requestLocation(): Promise<[number, number] | undefined> {
-    // On new arch, calling requestForegroundPermissionsAsync() when permission is
-    // already granted can cause a native crash. Check first; only request if needed.
-    const { status: existing } = await Location.getForegroundPermissionsAsync();
-    if (existing !== 'granted') {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-    }
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return;
 
     // Step 1: use cached position instantly — works offline with no GPS warm-up
     const last = await Location.getLastKnownPositionAsync();

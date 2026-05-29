@@ -94,14 +94,7 @@ export default function CompassScreen() {
   }
 
   async function startLocation() {
-    // Check permission first — calling requestForegroundPermissionsAsync() when
-    // already granted can cause a native crash on new arch. This runs on mount and
-    // expo-router eagerly mounts all tabs, so it fires on every app launch.
-    const { status: existing } = await Location.getForegroundPermissionsAsync();
-    let status = existing;
-    if (existing !== 'granted') {
-      ({ status } = await Location.requestForegroundPermissionsAsync());
-    }
+    const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return;
     Location.watchPositionAsync(
       { accuracy: Location.Accuracy.High, distanceInterval: 5 },
