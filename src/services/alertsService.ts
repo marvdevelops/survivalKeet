@@ -1,6 +1,70 @@
 import { getDb } from '../db/database';
 import type { Alert } from '../db/schema';
 
+// ─── Incoming push alert payload ─────────────────────────────────────────────
+
+export interface IncomingAlertPayload {
+  alertId: string;
+  type: string;
+  severity: string;
+  lat: number;
+  lng: number;
+  radius_km: number;
+  source: string;
+  issued_at: string;
+  title?: string;
+}
+
+/**
+ * Saves an alert received via push notification into the local alerts table.
+ * Called from the foreground notification listener on the home screen.
+ */
+export function saveIncomingAlert(payload: IncomingAlertPayload, title: string): void {
+  try {
+    const db = getDb();
+    // Avoid duplicates — skip if this alertId was already saved
+    const exists = db.getFirstSync<{ id: number }>(
+      "SELECT id FROM alerts WHERE source = ? AND published_at = ?",
+      payload.source, payload.issued_at
+    );
+    if (exists) return;
+
+    db.runSync(
+      `INSERT INTO alerts
+         (title, description, published_at, source, alert_type, severity, lat, lng, radius_km)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      title,
+      '',
+      payload.issued_at,
+      payload.source,
+      payload.type,
+      payload.severity,
+      payload.lat,
+      payload.lng,
+      payload.radius_km
+    );
+  } catch (e) {
+    console.warn('[alerts] saveIncomingAlert failed:', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/**
+ * Returns alerts received in the last 48 hours, newest first.
+ */
+export function getRecentAlerts(): Alert[] {
+  try {
+    return getDb().getAllSync<Alert>(
+      `SELECT * FROM alerts
+       WHERE cached_at >= datetime('now', '-48 hours')
+         OR published_at >= datetime('now', '-48 hours')
+       ORDER BY cached_at DESC
+       LIMIT 20`
+    );
+  } catch {
+    return [];
+  }
+}
+
 const PAGASA_URLS = [
   'https://pubfiles.pagasa.dost.gov.ph/rss/weather_bulletin.xml',
   'https://pubfiles.pagasa.dost.gov.ph/pagasaweb/files/rss/weather_bulletin.xml',

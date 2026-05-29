@@ -6,13 +6,10 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
 import { colors, spacing, fontSize, radius } from '../src/theme';
 import { getDb } from '../src/db/database';
 
@@ -47,68 +44,29 @@ const SLIDES: Slide[] = [
     title: 'Everything You Need',
     subtitle: 'Five tools built for real emergencies.',
     bullets: [
-      { icon: 'map',           text: 'Offline maps with evacuation points & hospitals' },
-      { icon: 'call',          text: 'One-tap SOS with local emergency numbers' },
-      { icon: 'construct',     text: 'CPR timer, tourniquet tracker, flashlight' },
-      { icon: 'book',          text: 'Survival guides for fire, flood, first aid & more' },
-      { icon: 'documents',     text: 'Offline document vault for IDs & insurance' },
-    ],
-  },
-  {
-    key: 'location',
-    icon: 'location',
-    iconColor: colors.success,
-    title: 'Enable Location',
-    subtitle: 'SurviveKit uses your location to show nearby hospitals, evacuation centers, and download your area\'s map for offline use.',
-    bullets: [
-      { icon: 'navigate',      text: 'Find nearby hospitals & pharmacies' },
-      { icon: 'cloud-download', text: 'Auto-download 120 km map for offline use' },
-      { icon: 'call-outline',  text: 'Show emergency numbers for your country' },
+      { icon: 'map',       text: 'Offline maps with evacuation points & hospitals' },
+      { icon: 'call',      text: 'One-tap SOS with local emergency numbers' },
+      { icon: 'construct', text: 'CPR timer, tourniquet tracker, flashlight' },
+      { icon: 'book',      text: 'Survival guides for fire, flood, first aid & more' },
+      { icon: 'documents', text: 'Offline document vault for IDs & insurance' },
     ],
   },
 ];
 
-function markOnboardingDone(countryCode: string) {
+function markOnboardingDone() {
   const db = getDb();
   db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('onboarding_done', '1')");
-  if (countryCode) {
-    db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('user_country', ?)", countryCode);
-  }
-  db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('auto_download_pending', '1')");
+  // auto_download_pending intentionally omitted — location is not requested during onboarding.
+  // The Map screen handles location permission and offline pack creation independently.
 }
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const flatListRef = useRef<FlatList<Slide>>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [requesting, setRequesting] = useState(false);
 
-  async function handleLocationAndFinish() {
-    setRequesting(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let countryCode = '';
-      if (status === 'granted') {
-        try {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          const [geo] = await Location.reverseGeocodeAsync({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          });
-          countryCode = geo?.isoCountryCode ?? '';
-        } catch {}
-      }
-      markOnboardingDone(countryCode);
-      router.replace('/(tabs)');
-    } catch {
-      Alert.alert('Error', 'Could not complete setup. Please try again.');
-    } finally {
-      setRequesting(false);
-    }
-  }
-
-  function handleSkipLocation() {
-    markOnboardingDone('');
+  function handleFinish() {
+    markOnboardingDone();
     router.replace('/(tabs)');
   }
 
@@ -168,26 +126,14 @@ export default function OnboardingScreen() {
       {/* Actions */}
       <View style={styles.actions}>
         {isLast ? (
-          <>
-            <TouchableOpacity
-              style={[styles.primaryBtn, requesting && styles.primaryBtnDisabled]}
-              onPress={handleLocationAndFinish}
-              disabled={requesting}
-              activeOpacity={0.85}
-            >
-              {requesting ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <>
-                  <Ionicons name="location" size={20} color={colors.white} />
-                  <Text style={styles.primaryBtnText}>Enable Location & Continue</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.skipBtn} onPress={handleSkipLocation} disabled={requesting}>
-              <Text style={styles.skipBtnText}>Skip — I'll set this up later</Text>
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={handleFinish}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="shield-checkmark" size={20} color={colors.white} />
+            <Text style={styles.primaryBtnText}>Get Started</Text>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.primaryBtn} onPress={goNext} activeOpacity={0.85}>
             <Text style={styles.primaryBtnText}>Next</Text>
@@ -268,7 +214,6 @@ const styles = StyleSheet.create({
   actions: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.lg,
-    gap: spacing.sm,
   },
   primaryBtn: {
     flexDirection: 'row',
@@ -280,13 +225,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     minHeight: 56,
   },
-  primaryBtnDisabled: { backgroundColor: colors.textDim },
   primaryBtnText: { color: colors.white, fontSize: fontSize.lg, fontWeight: '700' },
-  skipBtn: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  skipBtnText: { color: colors.textSecondary, fontSize: fontSize.sm },
 });

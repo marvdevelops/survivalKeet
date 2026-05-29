@@ -4,11 +4,12 @@ import type { ChecklistItem, MemberChecklist } from '../db/schema';
 export interface ChecklistRow extends ChecklistItem {
   checked: number;
   mc_id: number;
+  expiry_date: string | null;
 }
 
 export function getChecklistForMember(memberId: number): ChecklistRow[] {
   return getDb().getAllSync<ChecklistRow>(
-    `SELECT ci.*, mc.checked, mc.id as mc_id
+    `SELECT ci.*, mc.checked, mc.id as mc_id, mc.expiry_date
      FROM checklist_items ci
      JOIN member_checklist mc ON mc.item_id = ci.id
      WHERE mc.member_id = ?
@@ -72,6 +73,7 @@ export interface CustomChecklistItem {
   label: string;
   checked: number;
   created_at: string;
+  expiry_date: string | null;
 }
 
 export function getCustomItemsForMember(memberId: number): CustomChecklistItem[] {

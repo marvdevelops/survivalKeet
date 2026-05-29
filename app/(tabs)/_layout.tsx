@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSize } from '../../src/theme';
-
+import { useEmergency } from '../../src/context/EmergencyContext';
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
 const TAB_ITEMS: {
@@ -21,18 +22,23 @@ const TAB_ITEMS: {
 const HIDDEN_SCREENS = ['compass', 'checklist'];
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const { emergencyMode } = useEmergency();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.tabBar,
-          borderTopColor: colors.tabBarBorder,
-          borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
+        tabBarStyle: emergencyMode
+          ? { display: 'none' }
+          : {
+              backgroundColor: colors.tabBar,
+              borderTopColor: colors.tabBarBorder,
+              borderTopWidth: 1,
+              height: 60 + insets.bottom,
+              paddingBottom: 8 + insets.bottom,
+              paddingTop: 4,
+            },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: {

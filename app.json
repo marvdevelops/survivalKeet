@@ -2,7 +2,7 @@
   "expo": {
     "name": "SurviveKit",
     "slug": "survivekit",
-    "version": "1.1.0",
+    "version": "1.7.2",
     "scheme": "survivekit",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,11 +23,13 @@
         "NSCameraUsageDescription": "SurviveKit uses the camera to scan and store important documents offline.",
         "NSPhotoLibraryUsageDescription": "SurviveKit accesses your photo library to save copies of important documents offline.",
         "NSPhotoLibraryAddUsageDescription": "SurviveKit saves document photos to your device.",
-        "ITSAppUsesNonExemptEncryption": false
-      }
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSContactsUsageDescription": "SurviveKit reads your emergency contact list to send SMS alerts when the Dead Man's Switch fires."
+      },
+      "buildNumber": "26"
     },
     "android": {
-      "package": "com.survivekit.app",
+      "package": "com.survival.kit",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D1117"
@@ -42,8 +44,13 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES"
-      ]
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.SEND_SMS",
+        "android.permission.FLASHLIGHT"
+      ],
+      "versionCode": 16
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -67,7 +74,24 @@
           "cameraPermission": "SurviveKit uses the camera to scan and store important documents offline."
         }
       ],
-      "@maplibre/maplibre-react-native"
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SurviveKit uses the camera to scan QR codes from other family members' devices."
+        }
+      ],
+      "@maplibre/maplibre-react-native",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#E74C3C",
+          "androidMode": "default",
+          "androidCollapsedTitle": "SurviveKit Alert",
+          "iosDisplayInForeground": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

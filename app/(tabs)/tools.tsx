@@ -16,6 +16,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useEmergency } from '../../src/context/EmergencyContext';
+import { useTutorial } from '../../src/context/TutorialContext';
+import {
+  initCprBeep,
+  playCprBeep,
+  cleanupCprBeep,
+} from '../../src/services/cprBeepService';
 import * as FileSystem from 'expo-file-system/legacy';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 import { SectionHeader } from '../../src/components/SectionHeader';
@@ -27,11 +34,13 @@ import {
   DOC_CATEGORIES,
   type StoredDocument,
 } from '../../src/services/documentsService';
+import { getAllMembersSummary, type FamilySummary } from '../../src/services/checklistService';
+import { hasAnyExpiryWarning } from '../../src/services/expiryService';
 
 // CPR timing constants
-const COMPRESS_SECS = 18; // 30 compressions at 100/min
+const COMPRESS_SECS = 16; // 30 compressions at 110/min ≈ 16.4 s → 16
 const BREATHE_SECS = 4;   // 2 rescue breaths
-const BEAT_MS = 600;       // 100 bpm
+const BEAT_MS = 545;       // 110 bpm
 
 type CprMode = 'adult' | 'child' | 'infant';
 
@@ -102,8 +111,9 @@ export default function ToolsScreen() {
   const { open } = useLocalSearchParams<{ open?: string }>();
   const lastOpen = useRef<string | undefined>(undefined);
 
-  // ── Flashlight ──────────────────────────────────────────────────────────────
-  const [flashOn, setFlashOn] = useState(false);
+  // ── Flashlight — driven by global context ───────────────────────────────────
+  const { torchActive, toggleTorch } = useEmergency();
+  const { onActionCompleted } = useTutorial();
 
   // ── Distress signal ─────────────────────────────────────────────────────────
   const [sosActive, setSosActive] = useState(false);
@@ -127,6 +137,10 @@ export default function ToolsScreen() {
   const [tqStart, setTqStart] = useState<Date | null>(null);
   const tqTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Go-Bag ──────────────────────────────────────────────────────────────────
+  const [goBagSummaries,  setGoBagSummaries]  = useState<FamilySummary[]>([]);
+  const [goBagExpiryWarn, setGoBagExpiryWarn] = useState(false);
+
   // ── Documents ───────────────────────────────────────────────────────────────
   const [docsOpen, setDocsOpen] = useState(false);
   const [docs, setDocs] = useState<StoredDocument[]>([]);
@@ -137,13 +151,15 @@ export default function ToolsScreen() {
   const [newUri, setNewUri] = useState<string | null>(null);
   const [viewDoc, setViewDoc] = useState<StoredDocument | null>(null);
 
-  // Refresh doc count on focus + handle deep-open param from home quick tools
+  // Refresh doc count + go-bag summaries on focus + handle deep-open param from home quick tools
   useFocusEffect(useCallback(() => {
     setDocCount(getDocumentCount());
+    setGoBagSummaries(getAllMembersSummary());
+    setGoBagExpiryWarn(hasAnyExpiryWarning());
     if (open && open !== lastOpen.current) {
       lastOpen.current = open;
-      if (open.startsWith('cpr')) setCprOpen(true);
-      else if (open.startsWith('flashlight')) setFlashOn(true);
+      if (open.startsWith('cpr')) { setCprOpen(true); void initCprBeep(); }
+      else if (open.startsWith('flashlight')) void toggleTorch();
       else if (open.startsWith('documents')) { loadDocs(); setDocsOpen(true); }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,7 +178,13 @@ export default function ToolsScreen() {
   // ─── CPR helpers ────────────────────────────────────────────────────────────
   function startBeat() {
     if (cprBeatRef.current) clearInterval(cprBeatRef.current);
-    cprBeatRef.current = setInterval(() => setCprBeat((b) => !b), BEAT_MS);
+    cprBeatRef.current = setInterval(() => {
+      setCprBeat((b) => !b);
+      // Short haptic pulse on every beat (30 ms — enough to feel, not disruptive)
+      Vibration.vibrate([0, 30]);
+      // Audio beep — 110 bpm, plays even on silent switch (playsInSilentModeIOS)
+      void playCprBeep();
+    }, BEAT_MS);
   }
 
   function stopBeat() {
@@ -173,6 +195,8 @@ export default function ToolsScreen() {
   function startCpr() {
     setCprRunning(true);
     startBeat();
+    // Tutorial: lesson 5 — tried CPR timer
+    onActionCompleted('cpr_started');
     if (cprTickRef.current) clearInterval(cprTickRef.current);
     cprTickRef.current = setInterval(() => {
       setCprElapsed((e) => e + 1);
@@ -198,6 +222,7 @@ export default function ToolsScreen() {
     resetCpr();
     setCprMode(null);
     setCprOpen(false);
+    void cleanupCprBeep();
   }
 
   // Phase auto-advance
@@ -315,16 +340,22 @@ export default function ToolsScreen() {
 
   return (
     <>
-      {/* ── Flashlight overlay ───────────────────────────────────────────────── */}
-      {flashOn && (
+      {/* ── Flashlight overlay — shown when global torch is active ───────────── */}
+      {/* Hardware torch is driven by GlobalTorchCamera in _layout.tsx.
+          This overlay is just the dismissible full-screen UI affordance. */}
+      {torchActive && (
         <TouchableOpacity
           style={styles.flashOverlay}
           activeOpacity={1}
-          onPress={() => setFlashOn(false)}
+          onPress={() => void toggleTorch()}
         >
+          <Ionicons name="flashlight" size={72} color="#FFD700" />
           <View style={styles.flashOffHint}>
-            <Ionicons name="close-circle" size={32} color="#333" />
-            <Text style={styles.flashOffText}>Tap anywhere to turn off</Text>
+            <Text style={styles.flashOnLabel}>Torch ON</Text>
+            <View style={styles.flashOffRow}>
+              <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.flashOffText}>Tap anywhere to turn off</Text>
+            </View>
           </View>
         </TouchableOpacity>
       )}
@@ -350,10 +381,76 @@ export default function ToolsScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
           </TouchableOpacity>
 
+          {/* ── GO-BAG ──────────────────────────────────────────────────────── */}
+          {(() => {
+            const gbChecked = goBagSummaries.reduce((a, s) => a + (s.checked ?? 0), 0);
+            const gbTotal   = goBagSummaries.reduce((a, s) => a + (s.total   ?? 0), 0);
+            const gbPct     = gbTotal > 0 ? Math.round((gbChecked / gbTotal) * 100) : 0;
+            return (
+              <>
+                <SectionHeader
+                  title="Go-Bag"
+                  right={
+                    <TouchableOpacity
+                      onPress={() => router.push('/(tabs)/checklist')}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.goBagSeeAll}>Manage →</Text>
+                    </TouchableOpacity>
+                  }
+                />
+                <TouchableOpacity
+                  style={styles.goBagCard}
+                  onPress={() => router.push('/(tabs)/checklist')}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.goBagHeader}>
+                    <View style={[styles.toolIcon, { backgroundColor: '#4CAF50' + '25' }]}>
+                      <Ionicons name="bag" size={24} color="#4CAF50" />
+                    </View>
+                    <View style={styles.toolInfo}>
+                      <Text style={styles.toolName}>Go-Bag Checklist</Text>
+                      <Text style={styles.toolDesc}>
+                        {goBagSummaries.length === 0
+                          ? 'Add family members to track packing'
+                          : `${gbChecked}/${gbTotal} items packed · ${gbPct}% ready`}
+                      </Text>
+                    </View>
+                    {goBagExpiryWarn && (
+                      <View style={styles.goBagWarnBadge}>
+                        <Text style={styles.goBagWarnText}>⚠</Text>
+                      </View>
+                    )}
+                    <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+                  </View>
+                  {goBagSummaries.length > 0 && (
+                    <>
+                      <View style={styles.goBagProgressBar}>
+                        <View style={[styles.goBagProgressFill, { width: `${gbPct}%` }]} />
+                      </View>
+                      {goBagSummaries.slice(0, 3).map((s) => {
+                        const pct = s.total > 0 ? Math.round((s.checked / s.total) * 100) : 0;
+                        return (
+                          <View key={s.memberId} style={styles.goBagMemberRow}>
+                            <Text style={styles.goBagMemberName} numberOfLines={1}>{s.memberName}</Text>
+                            <Text style={styles.goBagMemberPct}>{pct}%</Text>
+                          </View>
+                        );
+                      })}
+                      {goBagSummaries.length > 3 && (
+                        <Text style={styles.goBagMore}>+{goBagSummaries.length - 3} more →</Text>
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            );
+          })()}
+
           {/* ── FIRST AID ────────────────────────────────────────────────────── */}
           <SectionHeader title="First Aid Timers" />
           <View style={styles.groupCard}>
-            <TouchableOpacity style={styles.groupRow} onPress={() => setCprOpen(true)}>
+            <TouchableOpacity style={styles.groupRow} onPress={() => { setCprOpen(true); void initCprBeep(); }}>
               <View style={[styles.toolIcon, { backgroundColor: colors.danger + '25' }]}>
                 <Ionicons name="heart" size={24} color={colors.danger} />
               </View>
@@ -383,18 +480,18 @@ export default function ToolsScreen() {
           <SectionHeader title="Emergency Signals" />
           <View style={styles.groupCard}>
             <TouchableOpacity
-              style={[styles.groupRow, flashOn && styles.groupRowActive]}
-              onPress={() => setFlashOn((v) => !v)}
+              style={[styles.groupRow, torchActive && styles.groupRowActive]}
+              onPress={() => void toggleTorch()}
             >
-              <View style={[styles.toolIcon, { backgroundColor: flashOn ? '#FFD700AA' : '#F39C12' + '25' }]}>
-                <Ionicons name={flashOn ? 'sunny' : 'sunny-outline'} size={24} color={flashOn ? '#000' : '#F39C12'} />
+              <View style={[styles.toolIcon, { backgroundColor: torchActive ? '#FFD700AA' : '#F39C12' + '25' }]}>
+                <Ionicons name={torchActive ? 'sunny' : 'sunny-outline'} size={24} color={torchActive ? '#000' : '#F39C12'} />
               </View>
               <View style={styles.toolInfo}>
                 <Text style={styles.toolName}>Flashlight</Text>
-                <Text style={styles.toolDesc}>{flashOn ? 'ON — tap to turn off' : 'Full-screen torch for signaling'}</Text>
+                <Text style={styles.toolDesc}>{torchActive ? 'ON — tap to turn off' : 'Full-screen torch for signaling'}</Text>
               </View>
-              <View style={[styles.togglePill, flashOn && styles.togglePillOn]}>
-                <View style={[styles.toggleThumb, flashOn && styles.toggleThumbOn]} />
+              <View style={[styles.togglePill, torchActive && styles.togglePillOn]}>
+                <View style={[styles.toggleThumb, torchActive && styles.toggleThumbOn]} />
               </View>
             </TouchableOpacity>
 
@@ -576,7 +673,7 @@ export default function ToolsScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.guideLink}
-                onPress={() => { closeCpr(); router.push('/(tabs)/guides'); }}>
+                onPress={() => { closeCpr(); router.push({ pathname: '/(tabs)/guides', params: { search: 'CPR' } }); }}>
                 <Ionicons name="book-outline" size={16} color={colors.primary} />
                 <Text style={styles.guideLinkText}>Open CPR guide for full instructions</Text>
               </TouchableOpacity>
@@ -890,17 +987,90 @@ const styles = StyleSheet.create({
   },
   countBadgeText: { color: colors.white, fontSize: fontSize.xs, fontWeight: '700' },
 
+  // ── Go-Bag card ─────────────────────────────────────────────────────────────
+  goBagSeeAll: {
+    color: colors.accent,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  goBagCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.xs,
+  },
+  goBagHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  goBagWarnBadge: {
+    backgroundColor: '#FF6B0020',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  goBagWarnText: {
+    color: '#FF6B00',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  goBagProgressBar: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+  },
+  goBagProgressFill: {
+    height: 6,
+    backgroundColor: '#4CAF50',
+    borderRadius: 3,
+  },
+  goBagMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  goBagMemberName: {
+    flex: 1,
+    color: colors.text,
+    fontSize: fontSize.sm,
+  },
+  goBagMemberPct: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+  },
+  goBagMore: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    textAlign: 'center',
+    paddingTop: 4,
+  },
+
   // ── Flashlight overlay ──────────────────────────────────────────────────────
   flashOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
     zIndex: 999,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 80,
+    justifyContent: 'center',
+    gap: spacing.xl,
   },
-  flashOffHint: { alignItems: 'center', gap: spacing.sm },
-  flashOffText: { color: '#333', fontSize: fontSize.sm, fontWeight: '600' },
+  flashOnLabel: {
+    color: '#FFD700',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 3,
+    marginTop: spacing.sm,
+  },
+  flashOffHint: { alignItems: 'center', gap: spacing.xs },
+  flashOffRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.sm },
+  flashOffText: { color: 'rgba(255,255,255,0.5)', fontSize: fontSize.sm, fontWeight: '600' },
 
   // ── Modals ──────────────────────────────────────────────────────────────────
   modalFull: { flex: 1, backgroundColor: colors.background },

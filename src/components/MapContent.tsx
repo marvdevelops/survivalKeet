@@ -14,6 +14,9 @@ import {
   NativeSyntheticEvent,
   ActivityIndicator,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { File, Paths } from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -35,7 +38,9 @@ import {
 import type { StyleSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { colors, spacing, fontSize, radius } from '../theme';
 import { getAllPins, addPin, deletePin, movePinLocation } from '../services/pinsService';
+import { exportPinsToQRString, parseQRPayload, importMergePins } from '../services/syncService';
 import type { Pin, PinType } from '../db/schema';
+import { useTutorial } from '../context/TutorialContext';
 import {
   getCachedPOIs,
   fetchAndCachePOIs,
@@ -109,8 +114,13 @@ const OFFLINE_RASTER_STYLE = JSON.stringify({
 
 // Write the raster style JSON to a local file so MapLibre can use its
 // file:// URI as the style URL for offline pack creation.
+// IMPORTANT: this must live in PERSISTENT storage (document dir), not the cache
+// dir. An offline pack stores this file:// path as its style URL, and MapLibre
+// reads every saved region's metadata when its offline DB initializes at launch.
+// iOS purges the Caches directory between launches, so a cache-dir path would
+// become a dangling file:// reference and can crash MapLibre on the next launch.
 function getOfflineStyleUri(): string {
-  const file = new File(Paths.cache, 'map_offline_style.json');
+  const file = new File(Paths.document, 'map_offline_style.json');
   file.write(OFFLINE_RASTER_STYLE);
   return file.uri;
 }
@@ -192,23 +202,44 @@ function saveLastKnownLocation(lat: number, lon: number) {
   } catch {}
 }
 
-function isAutoDownloadPending(): boolean {
+// Whether the one-time automatic area download has already completed for this install.
+function isAutoDownloadDone(): boolean {
   try {
     const meta = getDb().getFirstSync<{ value: string }>(
-      "SELECT value FROM app_meta WHERE key = 'auto_download_pending'"
+      "SELECT value FROM app_meta WHERE key = 'auto_download_done'"
     );
     return !!meta;
   } catch { return false; }
 }
 
-function clearAutoDownloadPending() {
+function markAutoDownloadDone() {
+  try {
+    getDb().runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('auto_download_done', '1')");
+  } catch {}
+}
+
+// Remove the legacy opt-in flag written by older onboarding builds (no longer used).
+function clearStaleAutoDownloadPending() {
   try {
     getDb().runSync("DELETE FROM app_meta WHERE key = 'auto_download_pending'");
   } catch {}
 }
 
+// Reflects whether at least one offline map pack currently exists. Read by the
+// preparedness score (see emergencyModeService) as a synchronous SQLite check.
+function setHasOfflineMapFlag(hasMap: boolean) {
+  try {
+    if (hasMap) {
+      getDb().runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('has_offline_map', '1')");
+    } else {
+      getDb().runSync("DELETE FROM app_meta WHERE key = 'has_offline_map'");
+    }
+  } catch {}
+}
+
 export default function MapContent() {
   const insets = useSafeAreaInsets();
+  const { onActionCompleted } = useTutorial();
   const cameraRef = useRef<CameraRef>(null);
   const hasFlown = useRef(false);
   const initialLocation = useRef(getLastKnownLocation());
@@ -251,6 +282,22 @@ export default function MapContent() {
   const [dlActive, setDlActive] = useState(false);
   const [dlProgress, setDlProgress] = useState(0);
   const [offlinePacks, setOfflinePacks] = useState<OfflinePack[]>([]);
+
+  // One-time auto-download gating: only fire once the map is loaded AND focused.
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [screenFocused, setScreenFocused] = useState(false);
+  const autoDlAttempted = useRef(false);
+
+  // When opened from the preparedness checklist ("Offline Map" item), this param
+  // is set so we surface the download sheet automatically.
+  const params = useLocalSearchParams<{ action?: string }>();
+  const downloadPromptHandled = useRef(false);
+
+  // QR share / scan state
+  const [qrModal, setQrModal] = useState<{ data: string; tooLarge: boolean } | null>(null);
+  const [scanModal, setScanModal] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const scanHandled = useRef(false);
 
   // Track keyboard height for staging bar
   useEffect(() => {
@@ -306,8 +353,13 @@ export default function MapContent() {
   }, [userLocation]);
 
   async function requestLocation(): Promise<[number, number] | undefined> {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
+    // On new arch, calling requestForegroundPermissionsAsync() when permission is
+    // already granted can cause a native crash. Check first; only request if needed.
+    const { status: existing } = await Location.getForegroundPermissionsAsync();
+    if (existing !== 'granted') {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+    }
 
     // Step 1: use cached position instantly — works offline with no GPS warm-up
     const last = await Location.getLastKnownPositionAsync();
@@ -350,18 +402,57 @@ export default function MapContent() {
     }
   }
 
-  // Auto-fly on first mount; also handle auto-download if pending
+  // Auto-fly on first mount. Clean up the legacy flag from older onboarding builds.
+  // The one-time area auto-download is intentionally NOT started here: running
+  // OfflineManager.createPack() at launch in an eagerly-mounted (possibly offscreen)
+  // tab is a native crash / OOM risk on the new architecture. It is started instead
+  // once the Map screen is focused AND the map has finished loading (effect below).
   useEffect(() => {
-    (async () => {
-      const coords = await requestLocation();
-      if (coords && isAutoDownloadPending()) {
-        clearAutoDownloadPending();
-        const [lng, lat] = coords;
-        triggerAutoDownload(lng, lat);
-      }
-    })();
+    clearStaleAutoDownloadPending();
+    requestLocation();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Track whether this screen is the focused tab (vs. eagerly mounted in background).
+  // Reset the download-prompt guard on blur so re-navigating from the checklist
+  // (?action=download) opens the sheet again on each visit.
+  useFocusEffect(
+    useCallback(() => {
+      setScreenFocused(true);
+      return () => {
+        setScreenFocused(false);
+        downloadPromptHandled.current = false;
+      };
+    }, []),
+  );
+
+  // One-time automatic area download.
+  // Fires only when ALL of these hold, which guarantees the native map context is
+  // alive and the user is actually viewing the Map (never at launch in the background):
+  //   • the Map tab is focused
+  //   • the map has finished loading (onDidFinishLoadingMap)
+  //   • we have a GPS fix to center the pack on
+  //   • it hasn't already run this install
+  useEffect(() => {
+    if (autoDlAttempted.current) return;
+    if (!screenFocused || !mapLoaded || !userLocation) return;
+    if (isAutoDownloadDone()) { autoDlAttempted.current = true; return; }
+
+    autoDlAttempted.current = true; // guard against re-entry within this session
+    const [lng, lat] = userLocation;
+    triggerAutoDownload(lng, lat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenFocused, mapLoaded, userLocation]);
+
+  // Arriving from the preparedness checklist with ?action=download: open the
+  // download sheet once the map is ready so the user can grab their area offline.
+  useEffect(() => {
+    if (downloadPromptHandled.current) return;
+    if (screenFocused && mapLoaded && params.action === 'download') {
+      downloadPromptHandled.current = true;
+      setShowDownload(true);
+    }
+  }, [screenFocused, mapLoaded, params.action]);
 
   // POI loading: fires when location becomes available, regardless of overlay toggle
   useEffect(() => {
@@ -401,13 +492,21 @@ export default function MapContent() {
     try {
       const packs = await OfflineManager.getPacks();
       setOfflinePacks(packs);
+      // Keep the preparedness flag in sync with the real pack list. Done here (in
+      // the map context, foreground/focused) so the scoring service can read a plain
+      // SQLite flag instead of calling the native OfflineManager.
+      setHasOfflineMapFlag(packs.length > 0);
     } catch {}
   }
 
   useEffect(() => { loadPacks(); }, []);
 
   async function triggerAutoDownload(lng: number, lat: number) {
-    const d = 1.2; // ~120 km radius in degrees
+    // Medium preset: ~50 km box at zoom 8-14. Small enough to be stable on launch-day
+    // devices, large enough to cover the user's surrounding area offline.
+    const d = 0.25;
+    const minZoom = 8;
+    const maxZoom = 14;
     const packName = `auto_${Date.now()}`;
     setDlActive(true);
     setDlProgress(0);
@@ -416,12 +515,13 @@ export default function MapContent() {
       await OfflineManager.createPack(
         { mapStyle: styleUri,
           bounds: [lng - d, lat - d, lng + d, lat + d],
-          minZoom: 5, maxZoom: 12,
-          metadata: { name: packName, size: 'large', auto: true, createdAt: new Date().toISOString() } },
+          minZoom, maxZoom,
+          metadata: { name: packName, size: 'medium', auto: true, createdAt: new Date().toISOString() } },
         (_pack: OfflinePack, status: OfflinePackStatus) => {
           setDlProgress(Math.round(status.percentage ?? 0));
           if (status.state === 'complete' || status.percentage >= 100) {
             setDlActive(false);
+            markAutoDownloadDone(); // only persist success — offline failures retry next visit
             loadPacks();
           }
         },
@@ -594,6 +694,8 @@ export default function MapContent() {
     addPin(stagingPin.name.trim(), stagingPin.type, stagingPin.lat, stagingPin.lon, '');
     setPins(getAllPins());
     setStagingPin(null);
+    // Tutorial: lesson 1 — dropped a pin
+    onActionCompleted('pin_added');
   }
 
   function handleDeletePin(pin: Pin) {
@@ -611,6 +713,55 @@ export default function MapContent() {
     ]);
   }
 
+  function handleSharePins() {
+    const result = exportPinsToQRString();
+    setQrModal(result);
+  }
+
+  async function handleScanPins() {
+    if (!cameraPermission?.granted) {
+      const { granted } = await requestCameraPermission();
+      if (!granted) {
+        Alert.alert('Camera permission required', 'Allow camera access to scan QR codes.');
+        return;
+      }
+    }
+    scanHandled.current = false;
+    setScanModal(true);
+  }
+
+  function handleBarCodeScanned({ data }: { data: string }) {
+    if (scanHandled.current) return;
+    scanHandled.current = true;
+    setScanModal(false);
+
+    const payload = parseQRPayload(data);
+    if (!payload) {
+      Alert.alert('Invalid QR Code', 'This QR code was not created by SurviveKit.');
+      return;
+    }
+    if (payload.p.length === 0) {
+      Alert.alert('No pins found', 'This QR code contains no map pins.');
+      return;
+    }
+
+    Alert.alert(
+      `Import ${payload.p.length} pin${payload.p.length !== 1 ? 's' : ''}?`,
+      'New pins will be added to your map. Duplicate pins will be skipped.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Import',
+          onPress: () => {
+            importMergePins(payload);
+            setPins(getAllPins());
+            Alert.alert('Done', `${payload.p.length} pin${payload.p.length !== 1 ? 's' : ''} imported.`);
+          },
+        },
+      ]
+    );
+  }
+
   const compassCardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(heading / 45) % 8];
 
   return (
@@ -622,6 +773,7 @@ export default function MapContent() {
         attribution
         attributionPosition={{ bottom: 8, right: 8 }}
         onPress={handleMapPress}
+        onDidFinishLoadingMap={() => setMapLoaded(true)}
       >
         <Camera
           ref={cameraRef}
@@ -760,9 +912,17 @@ export default function MapContent() {
 
       {/* Float buttons */}
       <View style={styles.floatButtons} pointerEvents="box-none">
-        {/* Locate — zooms to current location */}
+        {/* Locate */}
         <TouchableOpacity style={styles.floatBtn} onPress={flyToUser}>
           <Ionicons name="locate" size={22} color={colors.text} />
+        </TouchableOpacity>
+        {/* Share pins as QR */}
+        <TouchableOpacity style={styles.floatBtn} onPress={handleSharePins}>
+          <Ionicons name="qr-code-outline" size={22} color={colors.text} />
+        </TouchableOpacity>
+        {/* Scan QR to import pins */}
+        <TouchableOpacity style={styles.floatBtn} onPress={handleScanPins}>
+          <Ionicons name="scan-outline" size={22} color={colors.text} />
         </TouchableOpacity>
         {/* Download */}
         <TouchableOpacity
@@ -959,6 +1119,72 @@ export default function MapContent() {
           </View>
         </View>
       )}
+
+      {/* ── QR Share pins modal ──────────────────────────────────────── */}
+      <Modal visible={!!qrModal} transparent animationType="fade" onRequestClose={() => setQrModal(null)}>
+        <View style={styles.qrOverlay}>
+          <View style={styles.qrSheet}>
+            <View style={styles.qrSheetHeader}>
+              <Text style={styles.qrSheetTitle}>Share Map Pins</Text>
+              <TouchableOpacity onPress={() => setQrModal(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {qrModal?.tooLarge ? (
+              <View style={styles.qrTooLargeWrap}>
+                <Ionicons name="warning-outline" size={36} color={colors.accent} />
+                <Text style={styles.qrTooLargeTitle}>Too many pins</Text>
+                <Text style={styles.qrTooLargeBody}>
+                  You have too many pins to fit in one QR code. Delete some pins and try again.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.qrWrap}>
+                  {qrModal?.data ? (
+                    <QRCode value={qrModal.data} size={220} backgroundColor="#FFFFFF" color="#000000" />
+                  ) : (
+                    <ActivityIndicator color={colors.primary} />
+                  )}
+                </View>
+                <Text style={styles.qrHint}>
+                  Show this to another device running SurviveKit to import these pins.
+                </Text>
+                <Text style={styles.qrSizeNote}>
+                  {pins.length} pin{pins.length !== 1 ? 's' : ''} · {qrModal?.data.length ?? 0} bytes
+                </Text>
+              </>
+            )}
+
+            <TouchableOpacity style={styles.qrDoneBtn} onPress={() => setQrModal(null)}>
+              <Text style={styles.qrDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── QR Scan pins modal ───────────────────────────────────────── */}
+      <Modal visible={scanModal} animationType="slide" onRequestClose={() => setScanModal(false)}>
+        <View style={styles.scanContainer}>
+          <View style={[styles.scanHeader, { paddingTop: insets.top + spacing.sm }]}>
+            <Text style={styles.scanTitle}>Scan Pins QR</Text>
+            <TouchableOpacity onPress={() => setScanModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={24} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+          <CameraView
+            style={styles.scanCamera}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            onBarcodeScanned={handleBarCodeScanned}
+          />
+          <View style={styles.scanOverlay} pointerEvents="none">
+            <View style={styles.scanFrame} />
+          </View>
+          <Text style={styles.scanHint}>Point at a SurviveKit map pins QR code</Text>
+        </View>
+      </Modal>
 
       {/* Overlays / Style Modal */}
       <Modal visible={showOverlays} transparent animationType="fade" onRequestClose={() => setShowOverlays(false)}>
@@ -1297,6 +1523,44 @@ const styles = StyleSheet.create({
     gap: spacing.sm, backgroundColor: colors.primary, borderRadius: radius.lg, padding: spacing.md, minHeight: 52,
   },
   dlBtnText: { color: colors.white, fontSize: fontSize.md, fontWeight: '700' },
+  // QR share
+  qrOverlay: { flex: 1, backgroundColor: '#000000BB', justifyContent: 'flex-end' },
+  qrSheet: {
+    backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md,
+  },
+  qrSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  qrSheetTitle: { color: colors.text, fontSize: fontSize.xl, fontWeight: '700' },
+  qrWrap: {
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.white, borderRadius: radius.lg,
+    padding: spacing.lg, alignSelf: 'center',
+  },
+  qrHint: { color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', lineHeight: 20 },
+  qrSizeNote: { color: colors.textDim, fontSize: 10, textAlign: 'center' },
+  qrDoneBtn: {
+    backgroundColor: colors.surfaceElevated, borderRadius: radius.md,
+    padding: spacing.md, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border, minHeight: 52, justifyContent: 'center',
+  },
+  qrDoneBtnText: { color: colors.text, fontWeight: '700', fontSize: fontSize.md },
+  qrTooLargeWrap: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
+  qrTooLargeTitle: { color: colors.accent, fontSize: fontSize.lg, fontWeight: '700' },
+  qrTooLargeBody: { color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', lineHeight: 20 },
+  // QR scan
+  scanContainer: { flex: 1, backgroundColor: '#000' },
+  scanHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingBottom: spacing.sm,
+  },
+  scanTitle: { color: colors.white, fontSize: fontSize.xl, fontWeight: '700' },
+  scanCamera: { flex: 1 },
+  scanOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  scanFrame: { width: 240, height: 240, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary },
+  scanHint: {
+    color: colors.white, textAlign: 'center', fontSize: fontSize.sm,
+    padding: spacing.lg, backgroundColor: '#00000088',
+  },
   packRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border,

@@ -11,7 +11,10 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useEmergency } from '../../src/context/EmergencyContext';
+import { useTutorial } from '../../src/context/TutorialContext';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 import {
   getAllGuides,
@@ -72,6 +75,11 @@ function GuideDetail({ guide, onClose }: { guide: Guide; onClose: () => void }) 
 }
 
 export default function GuidesScreen() {
+  const router = useRouter();
+  const { emergencyMode } = useEmergency();
+  const { onActionCompleted } = useTutorial();
+  const { search: searchParam } = useLocalSearchParams<{ search?: string }>();
+
   const [query, setQuery] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -82,6 +90,20 @@ export default function GuidesScreen() {
     setCategories(getCategories());
     setGuides(getAllGuides());
   }, []);
+
+  // Auto-apply search param (e.g. search=CPR coming from the CPR timer)
+  useEffect(() => {
+    if (!searchParam?.trim()) return;
+    setQuery(searchParam);
+    setActiveCategory(null);
+    const results = searchGuides(searchParam);
+    setGuides(results);
+    // Auto-open if there is exactly one match
+    if (results.length === 1) {
+      const guide = getGuide(results[0].id);
+      if (guide) setSelectedGuide(guide);
+    }
+  }, [searchParam]);
 
   const runSearch = useCallback((q: string, cat: string | null) => {
     if (q.trim()) {
@@ -108,7 +130,11 @@ export default function GuidesScreen() {
 
   function openGuide(id: number) {
     const guide = getGuide(id);
-    if (guide) setSelectedGuide(guide);
+    if (guide) {
+      setSelectedGuide(guide);
+      // Tutorial: lesson 4 — read a guide
+      onActionCompleted('guide_opened');
+    }
   }
 
   return (
@@ -204,6 +230,18 @@ export default function GuidesScreen() {
           }
         />
       </View>
+
+      {/* Back to Emergency bar — only shown when emergency mode is active */}
+      {emergencyMode && (
+        <TouchableOpacity
+          style={styles.emergencyBackBar}
+          onPress={() => router.back()}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="warning" size={18} color="#FFFFFF" />
+          <Text style={styles.emergencyBackText}>← Back to Emergency Mode</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Guide detail full-screen modal */}
       <Modal
@@ -308,6 +346,22 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.md },
   emptyText: { color: colors.textSecondary, fontSize: fontSize.lg },
+
+  // Emergency mode back bar
+  emergencyBackBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#7B0000',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+  },
+  emergencyBackText: {
+    color: '#FFFFFF',
+    fontSize: fontSize.md,
+    fontWeight: '700',
+  },
 
   // Guide detail
   detailSafe: { flex: 1, backgroundColor: colors.background },

@@ -877,6 +877,217 @@ WOUNDS REQUIRING MEDICAL CARE
 - Any wound if the victim hasn't had a tetanus shot in 5 years.`,
   },
 
+  // ─── FIRST AID (v5 additions) ─────────────────────────────────────────────
+  {
+    category: 'First Aid',
+    title: 'AED / Defibrillator — How to Use',
+    keywords: 'AED defibrillator cardiac arrest heart shock automated external defibrillator',
+    body: `An AED (Automated External Defibrillator) delivers a controlled electric shock to restore a normal heart rhythm during sudden cardiac arrest. Anyone can use one — it gives voice instructions.
+
+WHEN TO USE
+- Person is unresponsive and not breathing normally.
+- Cardiac arrest is suspected.
+- Use together with CPR — do NOT stop to "wait" for an AED if CPR is already started.
+
+UNIVERSAL STEPS
+1. POWER ON — Press the power button (or lift the lid on some models). The AED will speak to you.
+2. ATTACH PADS
+   - Expose the bare chest. Dry it if wet.
+   - Adult pad 1: Upper right chest, below the collarbone.
+   - Adult pad 2: Lower left side, below the armpit.
+   - Pediatric pads (if available) for children under 8 — or place one on the chest, one on the back.
+3. PLUG IN the connector cable if not pre-connected.
+4. LET THE AED ANALYZE — stop CPR, ensure no one is touching the victim. The device analyzes the heart rhythm automatically.
+5. DELIVER SHOCK IF ADVISED
+   - Shout: "STAND CLEAR — everyone step back!"
+   - Visually confirm no one is touching the victim.
+   - Press the SHOCK button when prompted.
+6. RESUME CPR IMMEDIATELY — start compressions right after the shock. Continue CPR for 2 minutes, then let the AED re-analyze.
+7. Repeat until emergency services arrive or the person recovers.
+
+SAFETY NOTES
+- Do NOT use near water — move victim if lying in a puddle.
+- Remove medication patches (e.g., nitroglycerin) from the chest before applying pads.
+- Do NOT place pads over a pacemaker or implanted defibrillator (visible lump under skin) — offset the pad by 2–3cm.
+- AEDs are safe to use on pregnant women — place the pads as normal.
+- Do NOT delay defibrillation — every minute without a shock reduces survival by 7–10%.
+
+AEDs are commonly found in airports, shopping malls, gyms, government buildings, and schools. Look for the green AED sign.`,
+  },
+  {
+    category: 'Fire Safety',
+    title: 'Using a Fire Extinguisher (PASS)',
+    keywords: 'fire extinguisher PASS pull aim squeeze sweep sunog bomba class ABC',
+    body: `KNOW BEFORE YOU PULL — only fight a fire if:
+✔ The fire is small (wastebasket-sized or smaller).
+✔ You have a clear exit behind you.
+✔ Everyone else has already evacuated and the alarm is on.
+✔ You have the right type of extinguisher.
+
+If ANY of these are not true — evacuate immediately and call emergency services.
+
+─────────────────────────────
+EXTINGUISHER TYPES
+Class A — Ordinary combustibles (wood, paper, cloth, plastics). Most common; water/foam.
+Class B — Flammable liquids (gasoline, oil, paint, grease).
+Class C — Electrical fires. Never use water.
+Class K — Kitchen/cooking oils and fats. Use Class K (wet chemical) in kitchens.
+Multi-class ABC — The most common type in homes and offices.
+
+─────────────────────────────
+THE PASS TECHNIQUE
+P — PULL the pin at the top of the handle (breaks the tamper seal).
+A — AIM the nozzle low, pointing at the BASE of the fire (not the flames).
+S — SQUEEZE the handle to release the agent.
+S — SWEEP side to side at the base of the fire, moving slowly forward as it extinguishes.
+
+─────────────────────────────
+AFTER USE
+- Back away — fire can re-ignite once extinguisher agent is depleted.
+- Never turn your back on a fire.
+- Call emergency services even if you think it is out — fires can smolder inside walls.
+- Recharge or replace the extinguisher after any use, even partial.
+
+MAINTENANCE
+- Check monthly: pressure gauge in the green zone, no visible damage, pin and seal intact.
+- Replace or recharge every 5–12 years (check label) or after any discharge.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Oxygen Therapy — Emergency Use',
+    keywords: 'oxygen tank O2 mask nasal cannula flow rate respiratory breathing emergency',
+    body: `Emergency oxygen is used when a person is not breathing adequately or has very low blood oxygen (SpO₂ below 94%).
+
+WHEN TO USE
+- Cardiac arrest (during CPR with bag-valve-mask).
+- Difficulty breathing, shortness of breath.
+- Suspected heart attack, stroke, or severe asthma.
+- Near-drowning, smoke inhalation, carbon monoxide poisoning.
+- Major trauma or shock.
+- SpO₂ reading below 94% on a pulse oximeter.
+
+─────────────────────────────
+DELIVERY METHODS & FLOW RATES
+
+Nasal Cannula (prongs):
+- Flow rate: 1–6 L/min.
+- Delivers approximately 24–44% oxygen.
+- Use for mild hypoxia in conscious, breathing patients.
+- Insert prongs into both nostrils, loop tubing over ears, adjust clip.
+
+Simple Face Mask:
+- Flow rate: 5–10 L/min (minimum 5 L/min to flush CO₂).
+- Delivers approximately 35–60% oxygen.
+- Use for moderate hypoxia.
+- Fit snugly over nose and mouth; bend the metal nose clip.
+
+Non-Rebreather Mask (NRB):
+- Flow rate: 10–15 L/min.
+- Delivers approximately 70–90% oxygen — highest non-intubated delivery.
+- Inflate the reservoir bag BEFORE placing on patient.
+- Keep reservoir bag at least 1/3 full during use.
+- Use for severe hypoxia, CO poisoning, major trauma.
+
+─────────────────────────────
+SAFETY RULES
+- Keep oxygen AWAY from open flames, sparks, and smoking — oxygen greatly accelerates combustion.
+- Never store tanks horizontally when in use (use purpose-built stands or lay flat when transporting only).
+- Open the cylinder valve slowly — rapid release can ignite oil.
+- Never use oil or grease on oxygen fittings.
+- Check tank pressure gauge before use — green/full zone required.
+- Turn off the tank valve (not just the flow meter) when not in use.
+
+If SpO₂ does not improve with high-flow oxygen → this is a medical emergency — call 911.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Commercial Tourniquet (CAT / SOFTT-W)',
+    keywords: 'tourniquet CAT SOFTT combat application hemorrhage limb bleeding military',
+    body: `Commercial tourniquets (CAT, SOFTT-W, RATS) are more reliable than improvised ones and should be in every emergency kit.
+
+WHEN TO USE
+- Uncontrolled, life-threatening bleeding from an arm or leg.
+- Bleeding that soaks through direct pressure bandaging in minutes.
+- Traumatic amputation.
+- Do NOT use on the neck, chest, or abdomen.
+
+─────────────────────────────
+CAT (COMBAT APPLICATION TOURNIQUET) — STEPS
+
+1. POSITION: Apply 2–3 inches (5–7 cm) above the wound, NOT on a joint. Expose the limb.
+2. ROUTE: Thread the tail through the inner buckle (friction adapter buckle). Pull tight.
+3. WRAP: Route the tail back through the buckle again for a double-pass, and secure.
+4. TIGHTEN: Twist the windlass rod until bleeding stops. This will be painful — it is necessary.
+5. LOCK: Click the windlass clip into the windlass keeper to lock it.
+6. SECURE the strap: Wrap the strap over the windlass and through the clip.
+7. TIME: Write the application time on the white label with a marker, or on the victim's forehead.
+   Example: "T 14:35"
+
+─────────────────────────────
+SOFTT-W (SPECIAL OPERATIONS FORCES TACTICAL TOURNIQUET WIDE) — STEPS
+
+1. Open the buckle and open the tourniquet loop.
+2. Thread limb through the loop. Position 2–3 inches above the wound.
+3. Pull the tail through the buckle and tighten by pulling the non-buckle end.
+4. Close the buckle. Twist the windlass until bleeding stops.
+5. Lock windlass with the retention strap.
+6. Record time.
+
+─────────────────────────────
+IMPORTANT RULES
+- Do NOT remove once applied — only trained medical personnel should remove it.
+- A correctly applied tourniquet can remain on for up to 2 hours before significant limb risk.
+- Check every few minutes: if bleeding resumes, tighten further.
+- Keep the tourniquet visible — do not cover with clothing.
+- Get the casualty to advanced medical care as fast as possible.`,
+  },
+  {
+    category: 'First Aid',
+    title: 'Heimlich Maneuver — Choking Relief',
+    keywords: 'heimlich choking abdominal thrust airway obstruction suffocation tinik food windpipe',
+    body: `RECOGNIZE CHOKING
+Mild choking: Can cough, speak, breathe — encourage them to keep coughing. Do NOT interfere.
+Severe choking: Cannot cough effectively, cannot speak or breathe, may clutch throat, face turning red/blue. ACT NOW.
+
+─────────────────────────────
+ADULT / CHILD OVER 1 YEAR — HEIMLICH MANEUVER
+
+1. Ask: "Are you choking? Can I help?" If they nod — act.
+2. CALL 112/911 or shout for someone else to call.
+3. Give 5 BACK BLOWS:
+   - Lean the person forward slightly.
+   - Use the heel of your hand to deliver 5 firm strikes between the shoulder blades.
+4. Give 5 ABDOMINAL THRUSTS:
+   - Stand behind the person. Wrap your arms around their waist.
+   - Make a fist with one hand and place it thumb-side in, just above the navel and well below the breastbone.
+   - Grasp the fist with your other hand.
+   - Pull sharply INWARD and UPWARD (up toward the diaphragm).
+   - Repeat up to 5 times.
+5. ALTERNATE back blows and abdominal thrusts until the object is dislodged or the person loses consciousness.
+
+IF THE PERSON LOSES CONSCIOUSNESS:
+- Lower them gently to the floor.
+- Call 112/911 if not already done.
+- Start CPR — each time you open the airway to give breaths, look in the mouth and remove any visible object.
+
+─────────────────────────────
+INFANT (UNDER 1 YEAR) — BACK BLOWS + CHEST THRUSTS (NOT abdominal thrusts)
+
+1. Support head and neck. Hold face-down on your forearm, head lower than chest.
+2. Give 5 BACK BLOWS with heel of hand between shoulder blades.
+3. Flip infant face-up on your other forearm, supporting the head.
+4. Give 5 CHEST THRUSTS with 2 fingers on the center of the chest, just below the nipple line.
+5. Alternate until object clears or infant becomes unresponsive.
+6. If unresponsive — start infant CPR and call 112/911.
+
+─────────────────────────────
+SELF-HEIMLICH (choking alone)
+- Make a fist and give yourself abdominal thrusts.
+- OR lean forward and drive your upper abdomen onto a hard edge (chair back, railing, countertop).
+
+AFTER A SUCCESSFUL HEIMLICH — seek medical evaluation; abdominal thrusts can cause internal injury.`,
+  },
+
   // ─── SURVIVAL (additional) ─────────────────────────────────────────────────
   {
     category: 'Survival',

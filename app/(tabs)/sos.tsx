@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,8 @@ import { useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 import { getDb } from '../../src/db/database';
-import { getEmergencyNumbers, type EmergencyNumbers } from '../../src/data/emergencyNumbers';
+import { getEmergencyNumbers, detectCountryFromCoords, type EmergencyNumbers } from '../../src/data/emergencyNumbers';
+import * as Location from 'expo-location';
 
 // ── Custom contacts (SQLite) ─────────────────────────────────────────────────
 interface CustomContact {
@@ -60,6 +61,64 @@ function getStoredCountry(): string {
     );
     return meta?.value ?? '';
   } catch { return ''; }
+}
+
+function saveCountryCode(code: string): void {
+  try {
+    getDb().runSync(
+      "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('user_country', ?)",
+      code
+    );
+  } catch {}
+}
+
+// Read the last GPS fix the Map screen persisted (survives OS cache eviction).
+// Returns [lat, lng] or null.
+function getStoredLastLocation(): [number, number] | null {
+  try {
+    const db = getDb();
+    const lat = db.getFirstSync<{ value: string }>("SELECT value FROM app_meta WHERE key = 'last_lat'");
+    const lon = db.getFirstSync<{ value: string }>("SELECT value FROM app_meta WHERE key = 'last_lon'");
+    if (lat && lon) {
+      const latN = parseFloat(lat.value);
+      const lonN = parseFloat(lon.value);
+      if (Number.isFinite(latN) && Number.isFinite(lonN)) return [latN, lonN];
+    }
+    return null;
+  } catch { return null; }
+}
+
+/**
+ * Detect the user's country from last-known GPS position (no dialog, no crash).
+ * Uses offline bounding-box lookup — no reverse geocode, no network.
+ * Saves the result to app_meta so future visits are instant.
+ */
+async function detectAndSaveCountry(): Promise<string> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') return '';
+
+    // Prefer the OS position cache; fall back to the coords the Map screen saved.
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    const pos = await Location.getLastKnownPositionAsync();
+    if (pos) {
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } else {
+      const stored = getStoredLastLocation();
+      if (stored) { [lat, lng] = stored; }
+    }
+
+    if (lat === null || lng === null) return '';
+
+    const code = detectCountryFromCoords(lat, lng);
+    if (code) saveCountryCode(code);
+    return code;
+  } catch {
+    return '';
+  }
 }
 
 interface EmergencyLine {
@@ -108,11 +167,24 @@ export default function SOSScreen() {
   const [localNumbers, setLocalNumbers] = useState<EmergencyNumbers | null>(null);
 
   useFocusEffect(useCallback(() => {
+    let active = true;
     setCustomContacts(loadCustomContacts());
-    const cc = getStoredCountry();
-    setCountryCode(cc);
-    if (cc) setLocalNumbers(getEmergencyNumbers(cc));
-    else setLocalNumbers(null);
+
+    const stored = getStoredCountry();
+    if (stored) {
+      setCountryCode(stored);
+      setLocalNumbers(getEmergencyNumbers(stored));
+    } else {
+      // Country not yet cached — detect from last-known GPS position (safe, offline, no crash)
+      detectAndSaveCountry().then((detected) => {
+        if (active && detected) {
+          setCountryCode(detected);
+          setLocalNumbers(getEmergencyNumbers(detected));
+        }
+      });
+    }
+
+    return () => { active = false; };
   }, []));
 
   function handleCall(number: string, label: string) {
