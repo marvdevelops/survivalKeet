@@ -232,6 +232,9 @@ export default function MapContent() {
   const cameraRef = useRef<CameraRef>(null);
   const hasFlown = useRef(false);
   const initialLocation = useRef(getLastKnownLocation());
+  // [lon, lat] the POIs were last loaded for — used to avoid re-loading on every
+  // location poll; only re-evaluate when the user moves significantly.
+  const poiAnchorRef = useRef<[number, number] | null>(null);
   // Prevents map onPress from firing when a marker is tapped (MapLibre propagates both)
   const markerPressGuard = useRef(false);
   // Polling timer for location updates. We poll getLastKnownPositionAsync instead of
@@ -350,7 +353,13 @@ export default function MapContent() {
     if (status !== 'granted') return;
 
     const applyPosition = (lat: number, lon: number) => {
-      setUserLocation([lon, lat]);
+      // Keep the same array reference when the position hasn't meaningfully changed
+      // (~11 m), so the 5s poll doesn't re-trigger every userLocation effect (POI
+      // load, camera fly, etc.) on each tick.
+      setUserLocation((prev) => {
+        if (prev && Math.abs(prev[0] - lon) < 1e-4 && Math.abs(prev[1] - lat) < 1e-4) return prev;
+        return [lon, lat];
+      });
       saveLastKnownLocation(lat, lon);
     };
 
@@ -441,36 +450,42 @@ export default function MapContent() {
     }
   }, [screenFocused, mapLoaded, params.action]);
 
-  // POI loading: fires when location becomes available, regardless of overlay toggle
+  // Render cached POIs immediately on mount — instant, offline, no location needed.
   useEffect(() => {
     const cached = getCachedPOIs();
-
-    // Always render cached POIs immediately — no waiting for the network
     if (cached.length > 0) setPois(cached);
+  }, []);
 
+  // Load/refresh POIs from the network only when we first get a location or the
+  // user moves significantly (~5 km). The location poll updates userLocation, but
+  // this guard makes sure POIs are NOT re-fetched on every poll/map render — only
+  // once per area, and only if the cache is stale or empty.
+  useEffect(() => {
     if (!userLocation) return;
 
-    // Cache is fresh — nothing more to do
-    if (cached.length > 0 && !isPOICacheStale(userLocation[1], userLocation[0])) return;
+    const anchor = poiAnchorRef.current;
+    if (anchor && Math.hypot(anchor[0] - userLocation[0], anchor[1] - userLocation[1]) < 0.045) {
+      return; // still within ~5 km of the last load — ignore poll jitter / minor moves
+    }
+    poiAnchorRef.current = userLocation;
 
-    // Cache is stale (or empty) — fetch fresh POIs in the background.
-    // If we're offline the request will fail quickly; we keep showing the
-    // cached data silently rather than flashing an error the user can't act on.
+    const cached = getCachedPOIs();
+    if (cached.length > 0 && !isPOICacheStale(userLocation[1], userLocation[0])) {
+      setPois(cached); // fresh cache — no network
+      return;
+    }
+
+    // Cache stale or empty — fetch once in the background. If offline, fail quietly
+    // and keep showing whatever cache we have.
     setPoisLoading(true);
     setPoisError(null);
     fetchAndCachePOIs(userLocation[1], userLocation[0])
       .then((fresh) => { setPois(fresh); })
       .catch((e: Error) => {
-        if (cached.length > 0) {
-          // Offline with stale cache — keep showing what we have, no error banner
-          setPois(cached);
-        } else {
-          // Truly nothing to show
-          setPoisError(`POIs unavailable: ${e.message}`);
-        }
+        if (cached.length > 0) setPois(cached);
+        else setPoisError(`POIs unavailable: ${e.message}`);
       })
       .finally(() => setPoisLoading(false));
-  // Only re-run when location changes (not on overlay toggle)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation]);
 
