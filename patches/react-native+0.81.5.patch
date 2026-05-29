@@ -1,0 +1,23 @@
+diff --git a/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm b/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+index 2a67797..8ecfafa 100644
+--- a/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
++++ b/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+@@ -435,7 +435,17 @@ void ObjCTurboModule::performVoidMethodInvocation(
+     @try {
+       [inv invokeWithTarget:strongModule];
+     } @catch (NSException *exception) {
+-      throw convertNSExceptionToJSError(runtime, exception, std::string{moduleName}, methodNameStr);
++      // PATCH (SurviveKit / facebook/react-native#54859): On the async invocation
++      // path this block runs on a background dispatch queue that has no C++ exception
++      // handler, so `throw` here propagates to std::terminate -> abort (SIGABRT) on
++      // iOS 26. Only rethrow on the sync path (the JS thread can catch it); otherwise
++      // log and swallow so a throwing void native method no longer crashes the app.
++      if (shouldVoidMethodsExecuteSync_) {
++        throw convertNSExceptionToJSError(runtime, exception, std::string{moduleName}, methodNameStr);
++      } else {
++        NSLog(@"[SurviveKit] Suppressed async void TurboModule exception in %s.%s: %@",
++              moduleName, methodNameStr.c_str(), exception);
++      }
+     } @finally {
+       [retainedObjectsForInvocation removeAllObjects];
+     }
