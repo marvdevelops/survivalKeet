@@ -92,7 +92,7 @@ export function isPOICacheStale(lat: number, lon: number): boolean {
 export async function fetchAndCachePOIs(
   lat: number,
   lon: number,
-  radiusMeters = 10000,
+  radiusMeters = 5000,
   signal?: { aborted: boolean },
 ): Promise<POI[]> {
   const query = buildQuery(lat, lon, radiusMeters);
