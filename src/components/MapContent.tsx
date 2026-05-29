@@ -206,7 +206,8 @@ function clearStaleAutoDownloadPending() {
 }
 
 // Reflects whether at least one offline map pack currently exists. Read by the
-// preparedness score (see emergencyModeService) as a synchronous SQLite check.
+// preparedness score (see emergencyModeService) as a synchronous SQLite check,
+// and used to gate the one-time auto-download (skip if an area is already cached).
 function setHasOfflineMapFlag(hasMap: boolean) {
   try {
     if (hasMap) {
@@ -215,6 +216,14 @@ function setHasOfflineMapFlag(hasMap: boolean) {
       getDb().runSync("DELETE FROM app_meta WHERE key = 'has_offline_map'");
     }
   } catch {}
+}
+
+function hasOfflineMapFlag(): boolean {
+  try {
+    return !!getDb().getFirstSync<{ value: string }>(
+      "SELECT value FROM app_meta WHERE key = 'has_offline_map'"
+    );
+  } catch { return false; }
 }
 
 export default function MapContent() {
@@ -266,9 +275,11 @@ export default function MapContent() {
   const [dlProgress, setDlProgress] = useState(0);
   const [offlinePacks, setOfflinePacks] = useState<OfflinePack[]>([]);
 
-  // Map readiness + focus, used to gate the download-prompt sheet.
+  // Map readiness + focus, used to gate the download-prompt sheet and auto-download.
   const [mapLoaded, setMapLoaded] = useState(false);
   const [screenFocused, setScreenFocused] = useState(false);
+  // Guards the one-time auto-download so it fires at most once per app session.
+  const autoDlAttempted = useRef(false);
 
   // When opened from the preparedness checklist ("Offline Map" item), this param
   // is set so we surface the download sheet automatically.
@@ -405,11 +416,20 @@ export default function MapContent() {
     }, []),
   );
 
-  // NOTE: automatic offline-pack download is intentionally DISABLED.
-  // Auto-firing OfflineManager.createPack() as soon as a GPS fix arrives was the
-  // cause of the "crash whenever location is on" regression. Offline packs are now
-  // created only by an explicit user action — the download button / the
-  // preparedness "Offline Map" item, which opens the sheet (see effect below).
+  // One-time automatic area download.
+  // Fires once per install when the Map is actually being viewed (focused + loaded)
+  // and a GPS fix exists, so the user's surroundings are cached offline even if they
+  // never tap download. Skipped if an offline area already exists (manual or prior
+  // auto). Safe now that the RN TurboModule void-method crash is patched.
+  useEffect(() => {
+    if (autoDlAttempted.current) return;
+    if (!screenFocused || !mapLoaded || !userLocation) return;
+    autoDlAttempted.current = true; // once per session, regardless of outcome
+    if (hasOfflineMapFlag()) return; // an area is already cached — nothing to do
+    const [lng, lat] = userLocation;
+    triggerAutoDownload(lng, lat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenFocused, mapLoaded, userLocation]);
 
   // Arriving from the preparedness checklist with ?action=download: open the
   // download sheet once the map is ready so the user can grab their area offline.
@@ -467,6 +487,40 @@ export default function MapContent() {
   }
 
   useEffect(() => { loadPacks(); }, []);
+
+  // Silent one-time area download (no sheet UI). Medium preset: ~50 km box at
+  // zoom 8-14 — enough to cover the user's surroundings without being huge.
+  async function triggerAutoDownload(lng: number, lat: number) {
+    const d = 0.25;
+    const minZoom = 8;
+    const maxZoom = 14;
+    const packName = `auto_${Date.now()}`;
+    setDlActive(true);
+    setDlProgress(0);
+    try {
+      const styleUri = getOfflineStyleUri();
+      await OfflineManager.createPack(
+        { mapStyle: styleUri,
+          bounds: [lng - d, lat - d, lng + d, lat + d],
+          minZoom, maxZoom,
+          metadata: { name: packName, size: 'medium', auto: true, createdAt: new Date().toISOString() } },
+        (_pack: OfflinePack, status: OfflinePackStatus) => {
+          setDlProgress(Math.round(status.percentage ?? 0));
+          if (status.state === 'complete' || status.percentage >= 100) {
+            setDlActive(false);
+            loadPacks(); // refreshes pack list + sets the has_offline_map flag
+          }
+        },
+        (_pack: OfflinePack, error: { message: string }) => {
+          setDlActive(false);
+          console.warn('Auto-download failed:', error.message);
+        }
+      );
+    } catch (e) {
+      setDlActive(false);
+      console.warn('Auto-download createPack error:', e);
+    }
+  }
 
   async function startDownload() {
     if (!userLocation) {
