@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
-import { CameraView } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEmergency } from '../context/EmergencyContext';
 import {
   registerTorchCallback,
@@ -146,6 +146,7 @@ export function EmergencyModeScreen() {
   const [torchOn,         setTorchOn]         = useState(false);
   const [sosFlashRunning, setSosFlashRunning] = useState(false);
   const [audioRunning,    setAudioRunning]    = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   useEffect(() => {
     registerTorchCallback(setTorchOn);
@@ -159,15 +160,32 @@ export function EmergencyModeScreen() {
     };
   }, []);
 
-  const toggleFlashSos = useCallback(() => {
+  const toggleFlashSos = useCallback(async () => {
     if (sosFlashRunning) {
       stopFlashlightSos();
       setSosFlashRunning(false);
-    } else {
-      startFlashlightSos();
-      setSosFlashRunning(true);
+      return;
     }
-  }, [sosFlashRunning]);
+    // The torch is driven through expo-camera, which needs camera permission.
+    // Request it here (with a clear reason) only when the user actually starts the
+    // SOS flash — never just for entering emergency mode.
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert(
+          'Camera permission required',
+          'SurviveKit uses the camera flash to blink the SOS signal. Enable camera access to use it.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+    }
+    startFlashlightSos();
+    setSosFlashRunning(true);
+  }, [sosFlashRunning, cameraPermission, requestCameraPermission]);
 
   const toggleAudio = useCallback(async () => {
     if (audioRunning) {
@@ -215,8 +233,12 @@ export function EmergencyModeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
 
-      {/* Invisible 1×1 CameraView — required to drive the hardware torch */}
-      <CameraView style={styles.hiddenCamera} enableTorch={torchOn} />
+      {/* Invisible 1×1 CameraView — drives the hardware torch for the SOS flash.
+          Mounted only once camera permission is granted, so simply entering
+          emergency mode never triggers a camera permission prompt. */}
+      {cameraPermission?.granted && (
+        <CameraView style={styles.hiddenCamera} enableTorch={torchOn} />
+      )}
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
