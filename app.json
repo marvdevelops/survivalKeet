@@ -26,7 +26,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSContactsUsageDescription": "SurviveKit reads your emergency contact list to send SMS alerts when the Dead Man's Switch fires."
       },
-      "buildNumber": "40"
+      "buildNumber": "41"
     },
     "android": {
       "package": "com.survival.kit",
@@ -50,7 +50,7 @@
         "android.permission.SEND_SMS",
         "android.permission.FLASHLIGHT"
       ],
-      "versionCode": 26
+      "versionCode": 27
     },
     "web": {
       "favicon": "./assets/favicon.png",

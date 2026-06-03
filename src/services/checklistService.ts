@@ -84,9 +84,10 @@ export function getCustomItemsForMember(memberId: number): CustomChecklistItem[]
 }
 
 export function addCustomItem(memberId: number, label: string, category = 'Custom'): void {
+  // Note: bindings MUST match column order (member_id, category, label).
   getDb().runSync(
     'INSERT INTO custom_checklist_items (member_id, category, label) VALUES (?, ?, ?)',
-    memberId, label, category
+    memberId, category, label
   );
 }
 

@@ -138,11 +138,33 @@ function _runEmergencyV1Migration(database: SQLite.SQLiteDatabase): void {
   database.runSync("INSERT INTO app_meta (key, value) VALUES ('emergency_v1', '1')");
 }
 
+function _runCustomItemLabelSwapMigration(database: SQLite.SQLiteDatabase): void {
+  // Fixes a bug in addCustomItem that swapped the bindings for `category` and
+  // `label` when inserting. Existing rows have the user-typed name stuck in the
+  // `category` column and the literal string 'Custom' in `label`. The UI is the
+  // only writer for this table and always uses the default category 'Custom', so
+  // any row with category != 'Custom' is a bug victim and we can safely swap.
+  const done = database.getFirstSync<{ value: string }>(
+    "SELECT value FROM app_meta WHERE key = 'custom_item_label_swap_v1'"
+  );
+  if (done) return;
+
+  try {
+    database.runSync(
+      "UPDATE custom_checklist_items SET label = category, category = 'Custom' WHERE category <> 'Custom'"
+    );
+  } catch {
+    // Table might not exist yet on very old installs — harmless to skip.
+  }
+  database.runSync("INSERT INTO app_meta (key, value) VALUES ('custom_item_label_swap_v1', '1')");
+}
+
 function _initOnce(database: SQLite.SQLiteDatabase): void {
   database.execSync(CREATE_TABLES_SQL);
   _runMigrations(database);
   _runAlertsV2Migration(database);
   _runEmergencyV1Migration(database);
+  _runCustomItemLabelSwapMigration(database);
 
   const meta = database.getFirstSync<{ value: string }>(
     "SELECT value FROM app_meta WHERE key = 'seeded'"
