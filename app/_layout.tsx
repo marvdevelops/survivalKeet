@@ -16,19 +16,6 @@ import { DMS_ALERT_TYPE, triggerSmsAlert } from '../src/services/dmsService';
 // How long the loading screen stays visible at minimum (ms)
 const MIN_LOADING_MS = 3000;
 
-// Show notifications as a system banner + in the list even when the app is in
-// the foreground. Without this, foreground notifications on iOS only fire the
-// JS listener silently — important so real PAGASA alerts (and the diagnostic
-// "Test Calamity Alert") are visible even while the user is using the app.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
 // ─── Global torch camera ──────────────────────────────────────────────────────
 // Renders an invisible 1×1 CameraView that drives the hardware torch from the
 // global torchActive context state.  Not mounted during emergency mode because

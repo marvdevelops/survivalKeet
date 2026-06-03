@@ -36,7 +36,6 @@ import {
 } from '../../src/services/documentsService';
 import { getAllMembersSummary, type FamilySummary } from '../../src/services/checklistService';
 import { hasAnyExpiryWarning } from '../../src/services/expiryService';
-import { sendTestCalamityAlert } from '../../src/services/alertsService';
 
 // CPR timing constants
 const COMPRESS_SECS = 16; // 30 compressions at 110/min ≈ 16.4 s → 16
@@ -533,37 +532,6 @@ export default function ToolsScreen() {
                 <Text style={styles.countBadgeText}>{docCount}</Text>
               </View>
             )}
-            <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-          </TouchableOpacity>
-
-          {/* ── NOTIFICATIONS DIAGNOSTIC ───────────────────────────────────── */}
-          <SectionHeader title="Notifications" />
-          <TouchableOpacity
-            style={styles.toolCard}
-            onPress={async () => {
-              try {
-                await sendTestCalamityAlert();
-                Alert.alert(
-                  'Test alert sent',
-                  'Watch for the system notification banner and the alert banner on the Home tab. If you don\'t see the system notification, lock your phone within a few seconds.'
-                );
-              } catch (e) {
-                Alert.alert(
-                  'Could not send test',
-                  e instanceof Error ? e.message : 'Unknown error'
-                );
-              }
-            }}
-          >
-            <View style={[styles.toolIcon, { backgroundColor: colors.danger + '25' }]}>
-              <Ionicons name="warning" size={26} color={colors.danger} />
-            </View>
-            <View style={styles.toolInfo}>
-              <Text style={styles.toolName}>Test Calamity Alert</Text>
-              <Text style={styles.toolDesc}>
-                Sends a fake disaster notification to verify alerts work on this device
-              </Text>
-            </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
           </TouchableOpacity>
         </ScrollView>

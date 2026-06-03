@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import { getDb } from '../db/database';
 import type { Alert } from '../db/schema';
 
@@ -164,41 +163,4 @@ function extractTag(xml: string, tag: string): string | null {
   const regex = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/${tag}>`, 'si');
   const match = regex.exec(xml);
   return match ? match[1].trim() : null;
-}
-
-// ─── Test alert (diagnostic) ─────────────────────────────────────────────────
-
-/**
- * Fires a local notification that looks like a real incoming calamity push,
- * so the user can verify their notification setup end-to-end (system banner,
- * sound, in-app banner on Home, and saved entry in the alerts table).
- * Requires notification permission; throws if it can't schedule.
- */
-export async function sendTestCalamityAlert(): Promise<void> {
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    const req = await Notifications.requestPermissionsAsync();
-    if (req.status !== 'granted') {
-      throw new Error('Notification permission denied. Enable notifications in Settings.');
-    }
-  }
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: '⚠️ TEST — Severe Storm Warning',
-      body:
-        'This is a TEST calamity alert. A severe thunderstorm is forecast in your area within the hour. Take shelter and stay tuned.',
-      sound: true,
-      data: {
-        alertId: `test_${Date.now()}`,
-        type: 'thunderstorm',
-        severity: 'high',
-        lat: 0,
-        lng: 0,
-        radius_km: 25,
-        source: 'TEST',
-        issued_at: new Date().toISOString(),
-      },
-    },
-    trigger: null, // fire immediately
-  });
 }
