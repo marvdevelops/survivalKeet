@@ -1128,4 +1128,172 @@ GENERAL DISEASE PREVENTION IN DISASTERS
 - Do not share personal items (cups, utensils).
 - Wash hands frequently even with limited water.`,
   },
+
+  // ─── TYPHOON (additional) ──────────────────────────────────────────────────
+  {
+    category: 'Typhoon',
+    title: 'Storm Surge — What It Is and Why It Kills',
+    keywords: 'storm surge typhoon yolanda haiyan coastal evacuation flood ocean wave bagyo daluyong',
+    body: `Storm surge is not a wave. It is a wall of ocean water pushed inland by typhoon winds. It is the deadliest part of a typhoon — not the wind.
+
+WHAT IS STORM SURGE:
+Storm surge is a rapid rise of seawater above normal tide level caused by a typhoon's winds and low pressure. It can arrive as a fast-moving flood that rises several meters within minutes.
+
+HOW HIGH CAN IT GET:
+Typhoon Yolanda (Hainan) 2013:
+  Storm surge reached 5 to 7 meters
+  That is higher than a two-story house
+  It killed more than 6,000 people
+  Most deaths were from storm surge, not from wind
+
+Typhoon Frank (2008):
+  Storm surge caused MV Princess of the Stars to sink with 700+ onboard
+
+STORM SURGE HEIGHT REFERENCE:
+0.5m — Knee height on an adult
+       Can knock down a child
+1.0m — Waist height
+       Enough to sweep away most people
+1.5m — Chest height
+       Will sweep away any adult
+2.0m — Above head of most adults
+       Survival swimming only
+3.0m — Above a single-story house roof
+4.0m — Above a two-story house
+5-7m — Yolanda level — almost nothing survives
+
+WHO IS AT RISK:
+Anyone within 1 kilometer of the coastline during a strong typhoon.
+Low-lying coastal barangays.
+Areas near river mouths and bays.
+Islands with no high ground nearby.
+
+WARNING SIGNS OF INCOMING STORM SURGE:
+Ocean water suddenly pulls back from the shore — this is not safe, it means surge is coming.
+Strong, sustained onshore winds.
+Typhoon Signal 3 or higher near coast.
+PAGASA storm surge advisory issued.
+
+WHAT TO DO:
+If you are in a coastal area and typhoon is Signal 3 or higher:
+EVACUATE IMMEDIATELY to high ground or a designated evacuation center.
+Do not wait to see the surge coming. By the time you see it, it is too late.
+Go at least 2 to 3 kilometers inland or to ground at least 10 meters above sea level.
+Do not shelter in a house near the coast, even a concrete one.
+A concrete house provides no protection against a 3-meter storm surge.
+
+AFTER THE TYPHOON:
+Do not return to coastal areas until PAGASA and local authorities declare it safe. Secondary surges can occur.`,
+  },
+  {
+    category: 'Typhoon',
+    title: 'Typhoon Signal Decision Guide',
+    keywords: 'typhoon signal pagasa bagyo evacuation decision signal 1 2 3 4 5 wind action',
+    body: `This guide tells you exactly what to do at each PAGASA typhoon signal level. Most people wait too long to evacuate. This guide gives you a clear action at each level.
+
+SIGNAL 1 — Winds 60 to 89 kph
+Expected in 36 hours
+WHAT TO DO:
+Check your go-bag — is it packed?
+Charge all phones and power banks.
+Buy at least 3 days of water and food.
+Identify your nearest evacuation center.
+Check on elderly and sick neighbors.
+Trim or secure loose items outside.
+Monitor PAGASA updates every 6 hours.
+
+SIGNAL 2 — Winds 90 to 117 kph
+Expected in 24 hours
+WHAT TO DO:
+Fill bathtubs, pails, and containers with water — supply may be cut.
+Move valuables to upper floors.
+Board up windows if possible.
+Contact all family members — know where everyone will go.
+Identify two evacuation routes from your home in case one is flooded.
+If you are in a flood-prone area, consider evacuating now — do not wait.
+If you have elderly, infants, or PWD family members, evacuate now.
+
+SIGNAL 3 — Winds 118 to 184 kph
+Expected in 18 hours
+WHAT TO DO:
+EVACUATE if you are in any of these:
+  Storm surge zone (coastal area)
+  Flood-prone or low-lying area
+  Near a river or creek
+  A weak or old structure
+  A mountain area prone to landslide
+If your house is strong concrete and not in a flood or surge zone, you may shelter in place but stay inside.
+Turn off main electrical switch if flooding is expected.
+Stay away from all windows.
+Do not go outside during the typhoon.
+
+SIGNAL 4 — Winds 185 to 214 kph
+Expected in 12 hours
+WHAT TO DO:
+DO NOT GO OUTSIDE under any circumstances.
+If you have not evacuated, go to the strongest interior room — no windows.
+Stay on the ground floor unless flooding, then go higher.
+Grip something fixed during peak winds.
+Expect power, water, and communication to be cut.
+
+SIGNAL 5 — Winds 215 kph and above
+Catastrophic typhoon
+WHAT TO DO:
+Extreme danger. Survival mode only.
+Stay in the strongest part of your shelter. Do not move outside.
+If structure is failing, move to the lowest interior corner.
+After the eye passes, do not go outside — the other eyewall arrives with equal or greater force.
+
+AFTER THE TYPHOON:
+Wait for official all-clear before going outside.
+Watch for downed power lines — fatal even in shallow floodwater.
+Do not wade through floodwater — leptospirosis and electrical hazards.
+Document all damage immediately for insurance and relief claims.`,
+  },
+  {
+    category: 'Typhoon',
+    title: 'After the Typhoon — Hidden Dangers',
+    keywords: 'typhoon after aftermath danger power line leptospirosis floodwater contamination structure mental health',
+    body: `The typhoon has passed. But the danger is not over. These are the things that kill and injure people in the days after a typhoon.
+
+DOWNED POWER LINES:
+Downed power lines in floodwater are invisible and deadly.
+Even shallow ankle-deep floodwater can carry lethal electrical current.
+If you see a downed power line, stay at least 10 meters away.
+Do not touch anything metal near a downed power line.
+Report to your barangay or Meralco.
+Do not enter floodwater near power lines even if it looks shallow.
+
+FLOODWATER CONTAMINATION:
+Floodwater contains sewage, chemicals, animal waste, and disease.
+Leptospirosis is the biggest killer after Philippine typhoons.
+Do not wade through floodwater barefoot or without protection.
+Wear rubber boots if available.
+If you must wade, cover all cuts and wounds — infection risk is extreme.
+Wash and disinfect all skin contact with floodwater as soon as possible.
+Boil all drinking water for at least 1 minute until supply is confirmed safe.
+
+LEPTOSPIROSIS SYMPTOMS:
+Symptoms appear 2 to 14 days after floodwater exposure.
+Watch for: sudden high fever, severe headache, muscle pain especially in calves, red eyes, yellowing of skin.
+If these symptoms appear after flood exposure, go to the nearest hospital or Rural Health Unit immediately.
+Leptospirosis is treatable if caught early. Untreated, it can be fatal.
+
+UNSTABLE STRUCTURES:
+Do not re-enter damaged buildings until checked by a professional.
+Walls can collapse hours or days after the typhoon if structurally compromised.
+Watch for: cracks in load-bearing walls, shifted foundations, sagging ceilings, doors that no longer close properly.
+
+CONTAMINATED FOOD AND WATER:
+Do not eat food that floodwater has touched — bacteria contamination.
+Do not drink tap water until local government declares it safe.
+Use only bottled or boiled water.
+Discard all refrigerated food if power was out for more than 4 hours.
+
+MENTAL HEALTH:
+Emotional and psychological effects of typhoon survival are real and serious.
+Shock, anxiety, grief, and depression are normal responses to disaster.
+Talk to family members and neighbors.
+Seek help from barangay health workers or the National Center for Mental Health hotline: 1553.`,
+  },
 ];
