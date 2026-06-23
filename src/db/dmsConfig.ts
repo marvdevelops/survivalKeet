@@ -10,7 +10,7 @@ function rowToConfig(row: DmsConfigRow): DmsConfig {
   return {
     id: 1,
     is_active: row.is_active === 1,
-    interval_hours: (hours === 4 || hours === 6 || hours === 12) ? hours : 6,
+    interval_hours: (hours === 1 || hours === 4 || hours === 6 || hours === 12) ? hours : 6,
     grace_minutes:  (grace === 30 || grace === 60) ? grace : 30,
     owner_name:     row.owner_name ?? '',
     last_checkin_at: row.last_checkin_at,

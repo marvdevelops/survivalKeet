@@ -206,6 +206,23 @@ export async function activateDms(config: Partial<DmsConfig>): Promise<void> {
   }
 }
 
+/**
+ * Quick DMS activation — bypasses the config modal.
+ * Uses the shortest supported check-in window: 1-hour interval + 30-minute
+ * grace period. Any existing owner_name on the row is preserved (it falls back
+ * to '' / "Someone" in the SMS template if never set).
+ *
+ * Reuses the same scheduling pipeline as activateDms(): the reminder fires 5
+ * minutes before the deadline, the final warning fires at the deadline, and
+ * the background task scheduling logic is unchanged.
+ */
+export async function activateDmsQuick(): Promise<void> {
+  await activateDms({
+    interval_hours: 1,
+    grace_minutes:  30,
+  });
+}
+
 /** Deactivates DMS — cancels notifications and unregisters background task. */
 export async function deactivateDms(): Promise<void> {
   setDmsActive(false);

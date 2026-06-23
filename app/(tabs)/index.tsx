@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 import { TipsBanner } from '../../src/components/TipsBanner';
@@ -86,13 +86,20 @@ function DisasterBanner({
   );
 }
 
-interface QuickTool {
-  icon: keyof typeof Ionicons.glyphMap;
+interface QuickToolBase {
   label: string;
   color: string;
+  /** When true, the card is rendered with a red-tinted background + border for urgency. */
+  accent?: boolean;
   target?: string | { pathname: string; params: Record<string, string> };
   onPress?: () => void;
 }
+
+// Discriminated by `iconLib` so each entry's `icon` is type-checked against the
+// correct glyphMap (Ionicons by default; MaterialCommunityIcons when iconLib='mci').
+type QuickTool =
+  | (QuickToolBase & { iconLib?: 'ionicons'; icon: keyof typeof Ionicons.glyphMap })
+  | (QuickToolBase & { iconLib: 'mci';       icon: keyof typeof MaterialCommunityIcons.glyphMap });
 
 async function call911() {
   const url = 'tel:911';
@@ -137,6 +144,15 @@ export default function HomeScreen() {
   } = useTutorial();
 
   const quickTools: QuickTool[] = [
+    {
+      // Active Threat is the highest-urgency tool — visually accented to stand out.
+      iconLib: 'mci',
+      icon:    'shield-alert',
+      label:   'ACTIVE THREAT',
+      color:   '#E8452A',
+      accent:  true,
+      target:  '/active-threat',
+    },
     { icon: 'compass',   label: 'Compass',    color: colors.accent, target: '/(tabs)/compass' },
     { icon: 'heart',     label: 'CPR Timer',  color: colors.danger, target: { pathname: '/(tabs)/tools', params: { open: 'cpr' } } },
     {
@@ -339,7 +355,7 @@ export default function HomeScreen() {
           {quickTools.map((t) => (
             <TouchableOpacity
               key={t.label}
-              style={styles.quickToolBtn}
+              style={[styles.quickToolBtn, t.accent && styles.quickToolBtnAccent]}
               onPress={() => {
                 if (t.onPress) {
                   t.onPress();
@@ -350,7 +366,9 @@ export default function HomeScreen() {
               activeOpacity={0.75}
             >
               <View style={[styles.quickToolIcon, { backgroundColor: t.color + '25' }]}>
-                <Ionicons name={t.icon} size={26} color={t.color} />
+                {t.iconLib === 'mci'
+                  ? <MaterialCommunityIcons name={t.icon} size={26} color={t.color} />
+                  : <Ionicons               name={t.icon} size={26} color={t.color} />}
               </View>
               <Text style={styles.quickToolLabel}>{t.label}</Text>
             </TouchableOpacity>
@@ -653,6 +671,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   quickToolBtn: { alignItems: 'center', gap: spacing.xs, flex: 1 },
+  // Highest-urgency tools (e.g. Active Threat) get a red-tinted card background
+  // + danger border so they read as distinct from the regular tool buttons.
+  quickToolBtnAccent: {
+    backgroundColor: '#1C1010',
+    borderWidth: 1,
+    borderColor: '#E8452A',
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
   quickToolIcon: {
     width: 52,
     height: 52,

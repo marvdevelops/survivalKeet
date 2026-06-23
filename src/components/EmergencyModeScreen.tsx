@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -334,6 +334,18 @@ export function EmergencyModeScreen() {
 
         {/* ── 2-column Action Grid ─────────────────────────────────────────── */}
         <View style={styles.grid}>
+
+          {/* ACTIVE THREAT — highest urgency, visually accented */}
+          <TouchableOpacity
+            style={[styles.gridCard, styles.gridCardThreat]}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onPress={() => router.push('/active-threat' as any)}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="shield-alert" size={26} color="#E8452A" />
+            <Text style={styles.gridCardTitle}>{'ACTIVE\nTHREAT'}</Text>
+            <Text style={styles.gridCardSub}>Tap for tools</Text>
+          </TouchableOpacity>
 
           {/* MY LOCATION */}
           <View style={styles.gridCard}>
@@ -736,6 +748,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs,
     minHeight: 110,
+  },
+  // Highest-urgency grid card (Active Threat): overrides bg + border on top of
+  // the shared gridCard layout so the dimensions and padding stay identical.
+  gridCardThreat: {
+    backgroundColor: '#2A0A0A',
+    borderColor: '#E8452A',
   },
   gridCardTitle: {
     color: colors.white,

@@ -8,7 +8,7 @@ export interface EmergencyContact {
 export interface DmsConfig {
   id: 1;
   is_active: boolean;
-  interval_hours: 4 | 6 | 12;
+  interval_hours: 1 | 4 | 6 | 12;
   grace_minutes: 30 | 60;
   owner_name: string;
   last_checkin_at: string | null;
