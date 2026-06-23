@@ -25,6 +25,9 @@ import {
 import type { Guide } from '../../src/db/schema';
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  // 'Active Threat' sorts first alphabetically in the FlatList (SQL ORDER BY
+  // category), so it surfaces near the top of the guides list.
+  'Active Threat': 'warning',
   Earthquake: 'earth',
   Typhoon: 'thunderstorm',
   Flood: 'water',
@@ -35,6 +38,7 @@ const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
+  'Active Threat': '#E8452A', // matches the Active Threat tool branding
   Earthquake: '#8E44AD',
   Typhoon: '#2980B9',
   Flood: '#1ABC9C',

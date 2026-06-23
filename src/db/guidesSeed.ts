@@ -1296,4 +1296,116 @@ Shock, anxiety, grief, and depression are normal responses to disaster.
 Talk to family members and neighbors.
 Seek help from barangay health workers or the National Center for Mental Health hotline: 1553.`,
   },
+
+  // ─── ACTIVE THREAT ─────────────────────────────────────────────────────────
+  {
+    category: 'Active Threat',
+    title: 'Active Threat Survival Guide',
+    keywords: 'active threat run hide fight shooter attack school workplace mall lockdown shelter armed assailant',
+    body: `WHAT IS AN ACTIVE THREAT
+
+An active threat is any situation where a person or group is causing or attempting to cause death or serious injury in a populated area. This includes armed attackers in schools, malls, offices, churches, and public transport.
+
+You cannot always predict or prevent an active threat. What you can control is how quickly and clearly you respond when one happens.
+
+
+THE RUN-HIDE-FIGHT FRAMEWORK
+
+Run-Hide-Fight is the internationally recognized protocol used by law enforcement, schools, and workplaces. It is not a sequence — it is a decision. Assess your situation and act on the best option available to you right now.
+
+RUN — if you can get out safely
+Running is always the best option if a clear path exists. Distance from the threat is your greatest protection.
+- Do not wait for others to confirm what is happening
+- Leave all belongings behind
+- Move fast and low, away from the source of the threat
+- Do not use the main entrance or the direction of the noise
+- Once outside, keep moving — do not stop near the building
+- Call emergency services only when you are a safe distance away
+
+HIDE — if you cannot run
+If running is not possible, find a room you can secure and make yourself invisible to the threat.
+- Choose a room with a lockable or barricadable door
+- Move away from the door and all windows
+- Stay low against an interior wall
+- Turn off lights and silence all phones
+- Block the door with heavy furniture if possible
+- Do not open the door for anyone — police will identify themselves and use a key or force
+- Stay hidden until law enforcement gives an all-clear through official channels
+
+FIGHT — only as a last resort
+If you are directly confronted and cannot run or hide, fighting back gives you a chance. This is a last resort when your life is in immediate danger.
+- Act with aggression and surprise
+- Improvise weapons — fire extinguisher, chair, laptop, bag, hot liquid
+- Aim for vulnerable areas: eyes, throat, groin
+- Commit fully — do not hesitate
+- Multiple people acting together are significantly more effective than one
+
+
+BEFORE AN INCIDENT — HOW TO PREPARE
+
+Preparation takes minutes. It can save your life.
+
+At your workplace:
+- Identify at least two exit routes from your floor that do not use the main lobby
+- Know where the nearest stairwell doors are — elevators are not an option
+- Note which conference rooms or offices have locks
+- Discuss a rally point with your team — a location away from the building where you will meet
+
+At your child's school:
+- Ask the school about their lockdown procedure and who is responsible for it
+- Know which gate or exit to go to during a pickup emergency
+- Teach your child: if they hear loud banging or shouting in the hallway, move away from the door and stay quiet — do not open the door until a trusted adult says it is safe
+
+At malls and public spaces:
+- When you arrive, note the two nearest exits — not just the one you came in through
+- Identify the nearest pillar or structural wall — these provide cover, glass and drywall do not
+- If you are with family, agree on an outside meeting point before you split up
+
+On public transport:
+- If something suspicious is left unattended, alert the driver or security immediately and move to the opposite end
+- Know where the emergency exits are — trains, buses, and ferries all have them
+- If the vehicle is moving and you cannot exit, move to the floor and away from windows
+
+
+DURING AN INCIDENT — WHAT NOT TO DO
+
+These mistakes cost lives:
+- Do not pull out your phone to film what is happening
+- Do not run toward the sound to see what is happening
+- Do not assume a loud noise is just construction or a car backfire — act first, confirm later
+- Do not use the elevator under any circumstances
+- Do not gather in large groups outside the building — you become an easy target
+- Do not re-enter the building to find someone — alert police and let them conduct the search
+- Do not approach or confront law enforcement — keep your hands visible, do not make sudden movements
+
+
+HELPING OTHERS
+
+If you are a teacher, security guard, office manager, or parent with children in your care:
+- Your first responsibility is to the people in your immediate group
+- Lock or barricade your space before anything else
+- Keep children calm — speak in a low, steady voice, give them a task (hold this, stay here, count to 100 quietly)
+- If someone is injured and cannot move, do not leave them alone if it is safe to stay
+- Assign one person to contact emergency services while others manage the group
+
+
+AFTER THE INCIDENT
+
+- Wait for official all-clear from law enforcement before moving
+- Keep your hands visible when police arrive — follow all instructions immediately
+- Move away from the scene once cleared — do not linger
+- Check yourself and others for injuries — adrenaline can mask pain
+- Call your emergency contact as soon as it is safe to do so
+- Seek medical attention even if you feel fine
+- Emotional shock is normal — speak to a professional after the event
+
+
+USING THE ACTIVE THREAT TOOL IN SURVIVEKIT
+
+SurviveKit includes an interactive Active Threat decision guide accessible from the home screen. In a live situation, open the tool and answer one question at a time. It will walk you through the Run-Hide-Fight decision in real time.
+
+If you are hiding, the tool will offer to activate Dead Man's Switch — a 1-hour check-in timer that automatically alerts your emergency contact with your last known location if you go silent.
+
+The best time to open the tool is now, before you ever need it, so you know where it is.`,
+  },
 ];
