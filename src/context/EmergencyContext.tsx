@@ -20,6 +20,8 @@ import {
   getNextCheckinDate,
   registerDmsBackgroundTask,
 } from '../services/dmsService';
+import { refreshAlerts as _refreshAlerts } from '../services/alertManager';
+import type { GDACSAlert } from '../services/gdacsService';
 import type { PreparednessItem } from '../types/emergency';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -46,6 +48,13 @@ interface EmergencyContextValue {
   /** Re-reads all state from SQLite — call after editing contacts / medical info */
   reload: () => Promise<void>;
 
+  /** GDACS disaster alerts — empty array when no data yet */
+  alerts: GDACSAlert[];
+  alertsLastFetched: string | null;
+  alertsSource: 'live' | 'cached' | null;
+  isLoadingAlerts: boolean;
+  refreshAlerts: () => Promise<void>;
+
   /** true while the hardware torch is on */
   torchActive: boolean;
   /** Toggle the torch — requests camera permission if not yet granted */
@@ -68,6 +77,10 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
   const [hasEmergencyContacts, setHasEmergencyContacts] = useState(false);
   const [torchActive,          setTorchActive]          = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [alerts,             setAlerts]             = useState<GDACSAlert[]>([]);
+  const [alertsLastFetched,  setAlertsLastFetched]  = useState<string | null>(null);
+  const [alertsSource,       setAlertsSource]       = useState<'live' | 'cached' | null>(null);
+  const [isLoadingAlerts,    setIsLoadingAlerts]    = useState(false);
 
   // ── Read all state from SQLite ──────────────────────────────────────────────
 
@@ -92,13 +105,31 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
     setPreparednessItems(items);
   }, []);
 
+  // ── Alert refresh ─────────────────────────────────────────────────────────
+  // Declared before the mount effect so the effect's dependency array can reference it.
+
+  const refreshAlerts = useCallback(async () => {
+    setIsLoadingAlerts(true);
+    try {
+      const result = await _refreshAlerts();
+      setAlerts(result.alerts);
+      setAlertsSource(result.source);
+      setAlertsLastFetched(result.lastFetched);
+    } catch {
+      // non-fatal — leave existing state
+    } finally {
+      setIsLoadingAlerts(false);
+    }
+  }, []);
+
   // ── Mount ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     reload();
+    refreshAlerts();
     // Re-register background task on app launch in case it was cleared by OS
     registerDmsBackgroundTask().catch(() => null);
-  }, [reload]);
+  }, [reload, refreshAlerts]);
 
   // Turn off torch when app goes to background
   useEffect(() => {
@@ -180,6 +211,11 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
     refreshPreparedness,
     hasEmergencyContacts,
     reload,
+    alerts,
+    alertsLastFetched,
+    alertsSource,
+    isLoadingAlerts,
+    refreshAlerts,
     torchActive,
     toggleTorch,
   };

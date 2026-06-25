@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   Modal,
   TextInput,
@@ -31,6 +32,7 @@ import {
   toggleCustomItem,
   deleteCustomItem,
   resetCustomItems,
+  updateCustomItemCategory,
   type ChecklistRow,
   type CustomChecklistItem,
 } from '../../src/services/checklistService';
@@ -210,6 +212,66 @@ function ExpirySheet({ visible, label, memberName, currentExpiry, onSave, onClos
   );
 }
 
+// ─── Custom item categories ───────────────────────────────────────────────────
+
+const CUSTOM_CATEGORIES = [
+  'Custom',
+  'Water',
+  'Food',
+  'First Aid',
+  'Documents',
+  'Clothing',
+  'Tools',
+  'Communication',
+  'Shelter',
+  'Medicine',
+  'Hygiene',
+  'Baby',
+  'Pet',
+];
+
+// Category picker bottom sheet
+function CategoryPickerSheet({
+  visible,
+  current,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  current: string;
+  onSelect: (cat: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={onClose} />
+      <View style={styles.modalSheet}>
+        <Text style={styles.modalTitle}>Select Category</Text>
+        <View style={styles.catGrid}>
+          {CUSTOM_CATEGORIES.map((cat) => {
+            const active = current === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.catChip, active && styles.catChipActive]}
+                onPress={() => { onSelect(cat); onClose(); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.catChipText, active && styles.catChipTextActive]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel]} onPress={onClose}>
+          <Text style={styles.modalBtnCancelText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ChecklistScreen() {
@@ -222,6 +284,8 @@ export default function ChecklistScreen() {
   const [newType, setNewType] = useState<MemberType>('adult');
   const [addItemModal, setAddItemModal] = useState(false);
   const [newItemLabel, setNewItemLabel] = useState('');
+  const [newItemCategory, setNewItemCategory] = useState('Custom');
+  const [categoryPicker, setCategoryPicker] = useState<{ itemId: number; current: string } | null>(null);
   const [customItems, setCustomItems] = useState<CustomChecklistItem[]>([]);
 
   // QR sync state
@@ -324,8 +388,9 @@ export default function ChecklistScreen() {
 
   function handleAddCustomItem() {
     if (!newItemLabel.trim() || !selectedMember) return;
-    addCustomItem(selectedMember.id, newItemLabel.trim());
+    addCustomItem(selectedMember.id, newItemLabel.trim(), newItemCategory);
     setNewItemLabel('');
+    setNewItemCategory('Custom');
     setAddItemModal(false);
     selectMember(selectedMember);
   }
@@ -453,7 +518,7 @@ export default function ChecklistScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <>
+        <View style={{ flex: 1 }}>
           {/* Member selector */}
           <ScrollView
             horizontal
@@ -527,11 +592,12 @@ export default function ChecklistScreen() {
               </View>
             )}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
+              <Pressable
+                style={({ pressed }) => [
                   styles.checkItem,
                   getExpiryStatus(item.expiry_date) === 'expired' && styles.checkItemExpired,
                   getExpiryStatus(item.expiry_date) === 'expiring_soon' && styles.checkItemExpiringSoon,
+                  pressed && { opacity: 0.7 },
                 ]}
                 onPress={() => handleToggle(item.mc_id, item.checked)}
                 onLongPress={() => setExpirySheet({
@@ -540,7 +606,6 @@ export default function ChecklistScreen() {
                   label: item.label,
                   currentExpiry: item.expiry_date,
                 })}
-                activeOpacity={0.7}
               >
                 <View style={[styles.checkbox, item.checked === 1 && styles.checkboxChecked]}>
                   {item.checked === 1 && <Ionicons name="checkmark" size={16} color={colors.white} />}
@@ -558,7 +623,7 @@ export default function ChecklistScreen() {
                     <Text style={styles.setExpiryHint}>Hold to set expiry date</Text>
                   )}
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             )}
             ListFooterComponent={
               selectedMember ? (
@@ -585,6 +650,10 @@ export default function ChecklistScreen() {
                           }}
                           onLongPress={() => {
                             Alert.alert(item.label, 'What would you like to do?', [
+                              {
+                                text: 'Change Category',
+                                onPress: () => setCategoryPicker({ itemId: item.id, current: item.category }),
+                              },
                               {
                                 text: 'Set Expiry Date',
                                 onPress: () => setExpirySheet({
@@ -614,8 +683,8 @@ export default function ChecklistScreen() {
                               </Text>
                               <ExpiryBadge expiry={item.expiry_date} />
                             </View>
+                            <Text style={styles.checkItemNotes}>{item.category}</Text>
                             <ExpiryText expiry={item.expiry_date} />
-                            <Text style={styles.checkItemNotes}>Hold for options</Text>
                           </View>
                         </TouchableOpacity>
                       ))}
@@ -629,7 +698,7 @@ export default function ChecklistScreen() {
               ) : null
             }
           />
-        </>
+        </View>
       )}
 
       {/* ── QR Share modal ───────────────────────────────────────────── */}
@@ -780,8 +849,22 @@ export default function ChecklistScreen() {
         />
       )}
 
+      {/* Category picker for existing custom items */}
+      <CategoryPickerSheet
+        visible={!!categoryPicker}
+        current={categoryPicker?.current ?? 'Custom'}
+        onSelect={(cat) => {
+          if (categoryPicker && selectedMember) {
+            updateCustomItemCategory(categoryPicker.itemId, cat);
+            setCategoryPicker(null);
+            selectMember(selectedMember);
+          }
+        }}
+        onClose={() => setCategoryPicker(null)}
+      />
+
       {/* Add custom item modal */}
-      <Modal visible={addItemModal} transparent animationType="slide" onRequestClose={() => setAddItemModal(false)}>
+      <Modal visible={addItemModal} transparent animationType="slide" onRequestClose={() => { setAddItemModal(false); setNewItemLabel(''); setNewItemCategory('Custom'); }}>
         <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setAddItemModal(false)} />
           <View style={styles.modalSheet}>
@@ -797,8 +880,24 @@ export default function ChecklistScreen() {
               returnKeyType="done"
               onSubmitEditing={handleAddCustomItem}
             />
+            <Text style={styles.inputLabel}>Category</Text>
+            <View style={styles.catGrid}>
+              {CUSTOM_CATEGORIES.map((cat) => {
+                const active = newItemCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.catChip, active && styles.catChipActive]}
+                    onPress={() => setNewItemCategory(cat)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel]} onPress={() => setAddItemModal(false)}>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel]} onPress={() => { setAddItemModal(false); setNewItemLabel(''); setNewItemCategory('Custom'); }}>
                 <Text style={styles.modalBtnCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, styles.modalBtnSave]} onPress={handleAddCustomItem}>
@@ -1070,6 +1169,34 @@ const styles = StyleSheet.create({
   confirmOptionInfo: { flex: 1 },
   confirmOptionTitle: { color: colors.text, fontSize: fontSize.md, fontWeight: '700' },
   confirmOptionDesc: { color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2, lineHeight: 18 },
+
+  // Category picker
+  catGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm,
+  },
+  catChip: {
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+  },
+  catChipActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+  },
+  catChipText: {
+    color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '600',
+  },
+  catChipTextActive: {
+    color: colors.white,
+  },
+  catSelectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.surfaceElevated, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.md, minHeight: 52,
+  },
+  catSelectText: {
+    color: colors.text, fontSize: fontSize.md, fontWeight: '600',
+  },
 
   // Date picker
   datePicker: { width: '100%' },

@@ -12,6 +12,8 @@ import { TutorialProvider } from '../src/context/TutorialContext';
 import { colors } from '../src/theme';
 import { registerForPushNotifications } from '../src/services/pushRegistrationService';
 import { DMS_ALERT_TYPE, triggerSmsAlert } from '../src/services/dmsService';
+import { isOnline } from '../src/utils/connectivity';
+import { configureNotificationHandler } from '../src/utils/alertNotifications';
 
 // How long the loading screen stays visible at minimum (ms)
 const MIN_LOADING_MS = 3000;
@@ -23,13 +25,35 @@ const MIN_LOADING_MS = 3000;
 
 function GlobalTorchCamera() {
   const { torchActive, emergencyMode } = useEmergency();
-  if (emergencyMode || !torchActive) return null;
+  // Keep camera always mounted so the torch doesn't flash-on then off during
+  // the unmount/remount cycle.  EmergencyModeScreen owns its own CameraView.
+  if (emergencyMode) return null;
   return (
     <CameraView
       style={styles.hiddenCamera}
       enableTorch={torchActive}
     />
   );
+}
+
+// Polls connectivity every 30 s and refreshes alerts when back online.
+// Uses NetInfo.fetch() (promise, safe) instead of NetInfo.addEventListener()
+// which is a TurboModule void-method subscription that crashes on iOS 26 +
+// New Architecture (RN#54859).
+function ConnectivityAlertRefresher() {
+  const { refreshAlerts } = useEmergency();
+  const wasOnline = useRef<boolean | null>(null);
+  useEffect(() => {
+    const check = async () => {
+      const online = await isOnline();
+      if (online && wasOnline.current === false) refreshAlerts();
+      wasOnline.current = online;
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, [refreshAlerts]);
+  return null;
 }
 
 function isOnboardingDone(): boolean {
@@ -77,6 +101,10 @@ export default function RootLayout() {
     // Fire DB init; errors are non-fatal (app degrades gracefully).
     initDatabase().catch((e) => console.error('[DB] init error:', e));
 
+    // Configure local notification handler and request permissions.
+    configureNotificationHandler();
+    Notifications.requestPermissionsAsync().catch(() => null);
+
     // Register for push notifications after DB is ready — fire and forget.
     // Fails silently if offline or permissions denied.
     setTimeout(() => { registerForPushNotifications(); }, MIN_LOADING_MS + 500);
@@ -107,6 +135,7 @@ export default function RootLayout() {
       <EmergencyProvider>
         <TutorialProvider>
           <GlobalTorchCamera />
+          <ConnectivityAlertRefresher />
           {ready ? (
             <Stack screenOptions={{ headerShown: false }} />
           ) : (
@@ -120,5 +149,5 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root:        { flex: 1 },
-  hiddenCamera: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  hiddenCamera: { position: 'absolute', top: -2, left: -2, width: 2, height: 2 },
 });

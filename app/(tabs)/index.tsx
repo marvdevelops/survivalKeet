@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useEmergency } from '../../src/context/EmergencyContext';
 import { useTutorial } from '../../src/context/TutorialContext';
 import { LESSONS, type LessonId } from '../../src/services/tutorialService';
@@ -14,11 +14,11 @@ import {
   Linking,
   Alert,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
 import { colors, spacing, fontSize, radius } from '../../src/theme';
 import { TipsBanner } from '../../src/components/TipsBanner';
 import { SectionHeader } from '../../src/components/SectionHeader';
@@ -27,64 +27,211 @@ import { EmergencyModeButton } from '../../src/components/EmergencyModeButton';
 import { TutorialOverlay } from '../../src/components/TutorialOverlay';
 import { NextLessonCard } from '../../src/components/NextLessonCard';
 import type { PreparednessItem } from '../../src/types/emergency';
-import { saveIncomingAlert, type IncomingAlertPayload } from '../../src/services/alertsService';
+import type { GDACSAlert, GDACSEventType } from '../../src/services/gdacsService';
 import { getAllMembersSummary, type FamilySummary } from '../../src/services/checklistService';
 import { hasAnyExpiryWarning } from '../../src/services/expiryService';
 
 // ─── Alert banner ─────────────────────────────────────────────────────────────
 
-type AlertSeverity = 'extreme' | 'high' | 'medium' | 'low';
 
-const SEVERITY_BG: Record<AlertSeverity, string> = {
-  extreme: '#FF0000',
-  high:    '#FF6600',
-  medium:  '#FFB800',
-  low:     '#4CAF50',
+// ─── GDACS alert banner ───────────────────────────────────────────────────────
+
+const GDACS_TYPE_ICON: Record<GDACSEventType, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  TC: 'weather-hurricane',
+  EQ: 'alert-circle',
+  FL: 'waves',
+  VO: 'fire-alert',
+  WF: 'fire',
+  DR: 'weather-sunny-alert',
 };
 
-const SEVERITY_EMOJI: Record<AlertSeverity, string> = {
-  extreme: '⛔',
-  high:    '🔴',
-  medium:  '🟠',
-  low:     '🟡',
-};
-
-interface ActiveAlert {
-  title: string;
-  body: string;
-  severity: AlertSeverity;
+function formatTimeAgo(iso: string | null): string {
+  if (!iso) return '';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1)  return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24)  return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
 }
 
-const AUTO_DISMISS_MS = 30000;
-
-function isAlertSeverity(s: unknown): s is AlertSeverity {
-  return s === 'extreme' || s === 'high' || s === 'medium' || s === 'low';
+function formatAlertDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function DisasterBanner({
-  alert,
-  onDismiss,
+function GDACSBanner({
+  alerts,
+  lastFetched,
+  source,
+  isLoading,
 }: {
-  alert: ActiveAlert;
-  onDismiss: () => void;
+  alerts: GDACSAlert[];
+  lastFetched: string | null;
+  source: 'live' | 'cached' | null;
+  isLoading: boolean;
 }) {
-  const bg = SEVERITY_BG[alert.severity];
+  const { width: screenWidth } = useWindowDimensions();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAlert, setSelectedAlert] = useState<GDACSAlert | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sort: Philippines first, then Red > Orange > Green
+  const sorted = useMemo(() => {
+    return [...alerts]
+      .sort((a, b) => {
+        const isPH = (c: string) => c.toLowerCase().includes('philippine') ? 0 : 1;
+        if (isPH(a.country) !== isPH(b.country)) return isPH(a.country) - isPH(b.country);
+        const lvl = (l: string) => l === 'Red' ? 0 : l === 'Orange' ? 1 : 2;
+        return lvl(a.alertLevel) - lvl(b.alertLevel);
+      })
+      .slice(0, 5);
+  }, [alerts]);
+
+  // Reset index when alerts change
+  useEffect(() => { setCurrentIndex(0); }, [sorted.length]);
+
+  // Auto-advance ticker every 4 s
+  useEffect(() => {
+    if (sorted.length <= 1) return;
+    intervalRef.current = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % sorted.length);
+    }, 4000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [sorted.length]);
+
+  const currentAlert = sorted[currentIndex] ?? null;
+
   return (
-    <View style={[styles.banner, { backgroundColor: bg }]}>
-      <Text style={styles.bannerEmoji}>{SEVERITY_EMOJI[alert.severity]}</Text>
-      <View style={styles.bannerText}>
-        <Text style={styles.bannerTitle} numberOfLines={1}>{alert.title}</Text>
-        <Text style={styles.bannerBody}  numberOfLines={2}>{alert.body}</Text>
+    <View style={styles.gdacsSection}>
+      {/* Header row */}
+      <View style={styles.gdacsHeader}>
+        <Text style={styles.gdacsTitle}>LIVE DISASTER ALERTS</Text>
+        <View style={styles.gdacsHeaderRight}>
+          {sorted.length > 1 && (
+            <Text style={styles.gdacsPager}>{currentIndex + 1}/{sorted.length}</Text>
+          )}
+          {source !== null && (
+            <View style={styles.gdacsSourceRow}>
+              <View style={[styles.gdacsDot, { backgroundColor: source === 'live' ? '#22C55E' : '#6B7280' }]} />
+              <Text style={[styles.gdacsSourceText, { color: source === 'live' ? '#22C55E' : '#6B7280' }]}>
+                {source === 'live' ? 'LIVE' : 'CACHED'}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
-      <TouchableOpacity
-        onPress={onDismiss}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+
+      {/* Card */}
+      {isLoading && alerts.length === 0 ? (
+        <Text style={styles.gdacsEmptyText}>Checking for alerts...</Text>
+      ) : alerts.length === 0 ? (
+        <Text style={styles.gdacsEmptyText}>
+          {lastFetched ? 'No active alerts worldwide.' : 'Connect to internet to load live alerts.'}
+        </Text>
+      ) : currentAlert ? (() => {
+        const isRed = currentAlert.alertLevel === 'Red';
+        const ac = isRed ? '#E8452A' : '#F97316';
+        const bg = isRed ? '#1A0A0A' : '#1A1000';
+        return (
+          <TouchableOpacity
+            style={[styles.gdacsCard, { width: screenWidth - spacing.md * 2, backgroundColor: bg, borderLeftColor: ac }]}
+            onPress={() => setSelectedAlert(currentAlert)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.gdacsCardTop}>
+              <MaterialCommunityIcons name={GDACS_TYPE_ICON[currentAlert.type] ?? 'alert'} size={18} color={ac} />
+              <Text style={[styles.gdacsCardType, { color: ac }]}>
+                {currentAlert.type}  •  {currentAlert.country}
+              </Text>
+            </View>
+            <Text style={styles.gdacsCardTitle} numberOfLines={2}>{currentAlert.title}</Text>
+            <Text style={styles.gdacsCardSub}>
+              Alert Level: <Text style={{ color: ac, fontWeight: '700' }}>{currentAlert.alertLevel.toUpperCase()}</Text>
+            </Text>
+            <Text style={styles.gdacsCardSub}>Active since: {formatAlertDate(currentAlert.fromDate)}</Text>
+            {sorted.length > 1 && (
+              <View style={styles.gdacsDotsRow}>
+                {sorted.map((_, i) => (
+                  <View key={i} style={[styles.gdacsDotIndicator, i === currentIndex && styles.gdacsDotIndicatorActive]} />
+                ))}
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })() : null}
+
+      {lastFetched !== null && (
+        <Text style={styles.gdacsFooter}>Source: GDACS  •  Updated: {formatTimeAgo(lastFetched)}</Text>
+      )}
+
+      {/* Detail modal */}
+      <Modal
+        visible={!!selectedAlert}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedAlert(null)}
       >
-        <Ionicons name="close" size={22} color="#FFFFFF" />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.gdacsModalOverlay}
+          activeOpacity={1}
+          onPress={() => setSelectedAlert(null)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={styles.gdacsModalSheet}>
+              {selectedAlert && (() => {
+                const a = selectedAlert;
+                const isR = a.alertLevel === 'Red';
+                const ac = isR ? '#E8452A' : '#F97316';
+                return (
+                  <>
+                    <View style={styles.gdacsModalHeader}>
+                      <MaterialCommunityIcons name={GDACS_TYPE_ICON[a.type] ?? 'alert'} size={20} color={ac} />
+                      <Text style={[styles.gdacsModalType, { color: ac }]}>{a.type}  •  {a.country}</Text>
+                      <TouchableOpacity
+                        onPress={() => setSelectedAlert(null)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close" size={22} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.gdacsModalTitle}>{a.title}</Text>
+                    <View style={[styles.gdacsModalLevelBadge, { borderColor: ac }]}>
+                      <Text style={[styles.gdacsModalLevelText, { color: ac }]}>
+                        {a.alertLevel.toUpperCase()} ALERT
+                      </Text>
+                    </View>
+                    <Text style={styles.gdacsModalMeta}>
+                      Active: {formatAlertDate(a.fromDate)} – {formatAlertDate(a.toDate)}
+                    </Text>
+                    {a.url ? (
+                      <TouchableOpacity
+                        style={styles.gdacsModalLinkBtn}
+                        onPress={() => Linking.openURL(a.url).catch(() => {})}
+                      >
+                        <Ionicons name="open-outline" size={16} color={colors.primary} />
+                        <Text style={styles.gdacsModalLinkText}>View on GDACS</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                      style={styles.gdacsModalCloseBtn}
+                      onPress={() => setSelectedAlert(null)}
+                    >
+                      <Text style={styles.gdacsModalCloseBtnText}>Close</Text>
+                    </TouchableOpacity>
+                  </>
+                );
+              })()}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
+
+// ─── Quick tools ─────────────────────────────────────────────────────────────
 
 interface QuickToolBase {
   label: string;
@@ -134,6 +281,10 @@ export default function HomeScreen() {
     confirmCheckin,
     torchActive,
     toggleTorch,
+    alerts,
+    alertsLastFetched,
+    alertsSource,
+    isLoadingAlerts,
   } = useEmergency();
 
   const {
@@ -165,10 +316,8 @@ export default function HomeScreen() {
   ];
 
   const [refreshing, setRefreshing] = useState(false);
-  const [activeAlert, setActiveAlert] = useState<ActiveAlert | null>(null);
   const [summaries,    setSummaries]    = useState<FamilySummary[]>([]);
   const [hasExpiryWarn, setHasExpiryWarn] = useState(false);
-  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Emergency mode modals ────────────────────────────────────────────────────
   const [activateModal,   setActivateModal]   = useState(false);
@@ -179,41 +328,6 @@ export default function HomeScreen() {
     setSummaries(getAllMembersSummary());
     setHasExpiryWarn(hasAnyExpiryWarning());
   }, [refreshPreparedness]));
-
-  // Foreground push notification listener
-  useEffect(() => {
-    const subscription = Notifications.addNotificationReceivedListener((notification) => {
-      const data = notification.request.content.data as Record<string, unknown>;
-      const title = notification.request.content.title ?? 'Disaster Alert';
-      const body  = notification.request.content.body  ?? '';
-      const severity = isAlertSeverity(data.severity) ? data.severity : 'medium';
-
-      // Show banner
-      setActiveAlert({ title: title, body, severity });
-
-      // Auto-dismiss after 30 seconds
-      if (dismissTimer.current) clearTimeout(dismissTimer.current);
-      dismissTimer.current = setTimeout(() => setActiveAlert(null), AUTO_DISMISS_MS);
-
-      // Save to SQLite
-      const payload: IncomingAlertPayload = {
-        alertId:   String(data.alertId  ?? ''),
-        type:      String(data.type     ?? 'storm'),
-        severity:  String(data.severity ?? 'medium'),
-        lat:       typeof data.lat       === 'number' ? data.lat       : 0,
-        lng:       typeof data.lng       === 'number' ? data.lng       : 0,
-        radius_km: typeof data.radius_km === 'number' ? data.radius_km : 0,
-        source:    String(data.source    ?? 'unknown'),
-        issued_at: String(data.issued_at ?? new Date().toISOString()),
-      };
-      saveIncomingAlert(payload, title);
-    });
-
-    return () => {
-      subscription.remove();
-      if (dismissTimer.current) clearTimeout(dismissTimer.current);
-    };
-  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -257,17 +371,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Disaster alert banner — sits above scroll, full width */}
-      {activeAlert && (
-        <DisasterBanner
-          alert={activeAlert}
-          onDismiss={() => {
-            setActiveAlert(null);
-            if (dismissTimer.current) clearTimeout(dismissTimer.current);
-          }}
-        />
-      )}
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -324,6 +427,14 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* ── GDACS Live Alerts ─────────────────────────────────────────────── */}
+        <GDACSBanner
+          alerts={alerts}
+          lastFetched={alertsLastFetched}
+          source={alertsSource}
+          isLoading={isLoadingAlerts}
+        />
 
         {/* ── Emergency Preparedness ────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>EMERGENCY PREPAREDNESS</Text>
@@ -593,6 +704,176 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     marginTop: 2,
+  },
+
+  // ── GDACS alert section ──────────────────────────────────────────────────────
+  gdacsSection: {
+    marginBottom: spacing.lg,
+  },
+  gdacsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  gdacsHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  gdacsPager: {
+    color: colors.textDim,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  gdacsTitle: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  gdacsSourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  gdacsDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  gdacsSourceText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  gdacsEmptyText: {
+    color: colors.textDim,
+    fontSize: fontSize.sm,
+    paddingVertical: spacing.sm,
+  },
+  gdacsCard: {
+    borderLeftWidth: 4,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 4,
+  },
+  gdacsCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: 2,
+  },
+  gdacsCardType: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  gdacsCardTitle: {
+    color: '#FFFFFF',
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  gdacsCardSub: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  gdacsDotsRow: {
+    flexDirection: 'row',
+    gap: 5,
+    marginTop: spacing.xs,
+  },
+  gdacsDotIndicator: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#4B5563',
+  },
+  gdacsDotIndicatorActive: {
+    backgroundColor: '#9CA3AF',
+    width: 12,
+  },
+  gdacsFooter: {
+    color: colors.textDim,
+    fontSize: 10,
+    marginTop: spacing.sm,
+  },
+  // Detail modal
+  gdacsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  gdacsModalSheet: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    width: '100%',
+    gap: spacing.sm,
+  },
+  gdacsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  gdacsModalType: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  gdacsModalTitle: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  gdacsModalLevelBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1.5,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  gdacsModalLevelText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  gdacsModalMeta: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+  },
+  gdacsModalLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  gdacsModalLinkText: {
+    color: colors.primary,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  gdacsModalCloseBtn: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.xs,
+  },
+  gdacsModalCloseBtnText: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
   },
 
   safe:    { flex: 1, backgroundColor: colors.background },

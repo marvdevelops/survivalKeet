@@ -1,0 +1,102 @@
+diff --git a/node_modules/@maplibre/maplibre-react-native/lib/typescript/commonjs/modules/offline/OfflineManager.d.ts b/node_modules/@maplibre/maplibre-react-native/lib/typescript/commonjs/modules/offline/OfflineManager.d.ts
+index 0cdbe24..dfbdc01 100644
+--- a/node_modules/@maplibre/maplibre-react-native/lib/typescript/commonjs/modules/offline/OfflineManager.d.ts
++++ b/node_modules/@maplibre/maplibre-react-native/lib/typescript/commonjs/modules/offline/OfflineManager.d.ts
+@@ -66,7 +66,7 @@ declare class OfflineManager {
+      * );
+      * ```
+      */
+-    createPack(options: OfflinePackCreateOptions, progressListener: OfflinePackProgressListener, errorListener: OfflinePackErrorListener): Promise<OfflinePack>;
++    createPack(options: OfflinePackCreateOptions, progressListener?: OfflinePackProgressListener, errorListener?: OfflinePackErrorListener): Promise<OfflinePack>;
+     /**
+      * Invalidates the specified offline pack. This method checks that the tiles in
+      * the specified offline pack match those from the server. Local tiles that do
+diff --git a/node_modules/@maplibre/maplibre-react-native/lib/typescript/module/modules/offline/OfflineManager.d.ts b/node_modules/@maplibre/maplibre-react-native/lib/typescript/module/modules/offline/OfflineManager.d.ts
+index 0cdbe24..dfbdc01 100644
+--- a/node_modules/@maplibre/maplibre-react-native/lib/typescript/module/modules/offline/OfflineManager.d.ts
++++ b/node_modules/@maplibre/maplibre-react-native/lib/typescript/module/modules/offline/OfflineManager.d.ts
+@@ -66,7 +66,7 @@ declare class OfflineManager {
+      * );
+      * ```
+      */
+-    createPack(options: OfflinePackCreateOptions, progressListener: OfflinePackProgressListener, errorListener: OfflinePackErrorListener): Promise<OfflinePack>;
++    createPack(options: OfflinePackCreateOptions, progressListener?: OfflinePackProgressListener, errorListener?: OfflinePackErrorListener): Promise<OfflinePack>;
+     /**
+      * Invalidates the specified offline pack. This method checks that the tiles in
+      * the specified offline pack match those from the server. Local tiles that do
+diff --git a/node_modules/@maplibre/maplibre-react-native/src/modules/location/LocationManager.ts b/node_modules/@maplibre/maplibre-react-native/src/modules/location/LocationManager.ts
+index 940cb18..251a230 100644
+--- a/node_modules/@maplibre/maplibre-react-native/src/modules/location/LocationManager.ts
++++ b/node_modules/@maplibre/maplibre-react-native/src/modules/location/LocationManager.ts
+@@ -56,6 +56,9 @@ class LocationManager {
+   private isListening: boolean = false;
+ 
+   private subscription: EventSubscription | undefined = undefined;
++  // Polling fallback used when NativeLocationModule.onUpdate() throws on
++  // iOS 26 + New Architecture without source-compiled RN (RN#54859).
++  private pollInterval: ReturnType<typeof setInterval> | undefined = undefined;
+ 
+   constructor() {
+     this.handleUpdate = this.handleUpdate.bind(this);
+@@ -109,7 +112,19 @@ class LocationManager {
+     if (!this.isListening) {
+       NativeLocationModule.start();
+ 
+-      this.subscription = NativeLocationModule.onUpdate(this.handleUpdate);
++      try {
++        // NativeLocationModule.onUpdate is a TurboModule void-method subscription
++        // that throws/crashes on iOS 26 + New Architecture without source-compiled
++        // React Native (RN#54859). Fall back to a 1-second getCurrentPosition poll.
++        this.subscription = NativeLocationModule.onUpdate(this.handleUpdate);
++      } catch {
++        this.pollInterval = setInterval(async () => {
++          try {
++            const pos = await NativeLocationModule.getCurrentPosition();
++            if (pos) { this.handleUpdate(pos as GeolocationPosition); }
++          } catch { /* ignore poll errors */ }
++        }, 1000);
++      }
+ 
+       this.isListening = true;
+     }
+@@ -120,6 +135,10 @@ class LocationManager {
+ 
+     if (this.isListening) {
+       this.subscription?.remove();
++      if (this.pollInterval !== undefined) {
++        clearInterval(this.pollInterval);
++        this.pollInterval = undefined;
++      }
+     }
+ 
+     this.isListening = false;
+diff --git a/node_modules/@maplibre/maplibre-react-native/src/modules/offline/OfflineManager.ts b/node_modules/@maplibre/maplibre-react-native/src/modules/offline/OfflineManager.ts
+index 19314dd..2047e61 100644
+--- a/node_modules/@maplibre/maplibre-react-native/src/modules/offline/OfflineManager.ts
++++ b/node_modules/@maplibre/maplibre-react-native/src/modules/offline/OfflineManager.ts
+@@ -104,8 +104,8 @@ class OfflineManager {
+    */
+   async createPack(
+     options: OfflinePackCreateOptions,
+-    progressListener: OfflinePackProgressListener,
+-    errorListener: OfflinePackErrorListener,
++    progressListener?: OfflinePackProgressListener,
++    errorListener?: OfflinePackErrorListener,
+   ): Promise<OfflinePack> {
+     await this.initialize();
+ 
+@@ -122,7 +122,13 @@ class OfflineManager {
+     const offlinePack = new OfflinePack(nativeOfflinePack);
+ 
+     this.offlinePacks[offlinePack.id] = offlinePack;
+-    await this.addListener(offlinePack.id, progressListener, errorListener);
++    // Guard: only subscribe to native events if real listeners are provided.
++    // Unconditional addListener() calls NativeOfflineModule.onProgress() which
++    // is a TurboModule void-method subscription that crashes on iOS 26 +
++    // New Architecture outside of source-compiled builds (RN#54859).
++    if (progressListener || errorListener) {
++      await this.addListener(offlinePack.id, progressListener, errorListener);
++    }
+ 
+     return offlinePack;
+   }

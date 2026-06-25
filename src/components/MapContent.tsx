@@ -514,23 +514,37 @@ export default function MapContent() {
     setDlProgress(0);
     try {
       const styleUri = getOfflineStyleUri();
+      // No callbacks — passing any truthy listener (even () => {}) causes
+      // OfflineManager.addListener() to call NativeOfflineModule.onProgress(),
+      // a TurboModule void-method subscription that crashes on iOS 26 +
+      // New Architecture (RN#54859). Progress tracked via polling below.
       await OfflineManager.createPack(
         { mapStyle: styleUri,
           bounds: [lng - d, lat - d, lng + d, lat + d],
           minZoom, maxZoom,
           metadata: { name: packName, size: 'medium', auto: true, createdAt: new Date().toISOString() } },
-        (_pack: OfflinePack, status: OfflinePackStatus) => {
-          setDlProgress(Math.round(status.percentage ?? 0));
-          if (status.state === 'complete' || status.percentage >= 100) {
-            setDlActive(false);
-            loadPacks(); // refreshes pack list + sets the has_offline_map flag
-          }
-        },
-        (_pack: OfflinePack, error: { message: string }) => {
-          setDlActive(false);
-          console.warn('Auto-download failed:', error.message);
-        }
       );
+
+      // Poll getPacks() every 3 s — safe promise-based API, no native subscriptions.
+      const pollId = setInterval(async () => {
+        try {
+          const packs = await OfflineManager.getPacks();
+          const pack = packs.find((p) => {
+            const meta = p.metadata as { name?: string } | undefined;
+            return meta?.name === packName;
+          });
+          if (!pack) return;
+          const status: OfflinePackStatus = await pack.status();
+          setDlProgress(Math.round(status.percentage ?? 0));
+          if (status.state === 'complete' || (status.percentage ?? 0) >= 100) {
+            clearInterval(pollId);
+            setDlActive(false);
+            loadPacks();
+          }
+        } catch {
+          // transient poll error — keep polling
+        }
+      }, 3000);
     } catch (e) {
       setDlActive(false);
       console.warn('Auto-download createPack error:', e);
@@ -782,7 +796,10 @@ export default function MapContent() {
             ? { center: initialLocation.current, zoom: 13 }
             : { center: [0, 20], zoom: 1.5 }}
         />
-        {Platform.OS !== 'web' && <UserLocation />}
+        {/* UserLocation removed — triggers NativeLocationModule.onUpdate()
+            TurboModule void-method subscription (RN#54859 crash on iOS 26 +
+            New Architecture). User location is tracked via expo-location
+            polling in requestLocation() instead. */}
 
         {routeGeoJSON && (
           <GeoJSONSource id="route" data={routeGeoJSON}>

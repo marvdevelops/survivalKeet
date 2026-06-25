@@ -211,6 +211,21 @@ export const CREATE_TABLES_SQL = `
     PRIMARY KEY (osm_id, type)
   );
 
+  CREATE TABLE IF NOT EXISTS gdacs_alerts (
+    id          TEXT PRIMARY KEY,
+    type        TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    alert_level TEXT NOT NULL,
+    country     TEXT NOT NULL,
+    latitude    REAL NOT NULL,
+    longitude   REAL NOT NULL,
+    from_date   TEXT NOT NULL,
+    to_date     TEXT NOT NULL,
+    url         TEXT NOT NULL,
+    is_current  INTEGER NOT NULL DEFAULT 1,
+    fetched_at  TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

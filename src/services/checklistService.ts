@@ -102,6 +102,10 @@ export function deleteCustomItem(id: number): void {
   getDb().runSync('DELETE FROM custom_checklist_items WHERE id = ?', id);
 }
 
+export function updateCustomItemCategory(id: number, category: string): void {
+  getDb().runSync('UPDATE custom_checklist_items SET category = ? WHERE id = ?', category, id);
+}
+
 export function resetCustomItems(memberId: number): void {
   getDb().runSync(
     'UPDATE custom_checklist_items SET checked = 0 WHERE member_id = ?',

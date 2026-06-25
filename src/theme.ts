@@ -27,13 +27,13 @@ export const spacing = {
 } as const;
 
 export const fontSize = {
-  xs: 11,
-  sm: 13,
-  md: 15,
-  lg: 17,
-  xl: 20,
-  xxl: 26,
-  display: 34,
+  xs: 13,
+  sm: 15,
+  md: 17,
+  lg: 19,
+  xl: 22,
+  xxl: 28,
+  display: 36,
 } as const;
 
 export const radius = {

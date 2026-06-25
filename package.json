@@ -1,6 +1,6 @@
 {
   "name": "survivekit",
-  "version": "1.7.2",
+  "version": "1.7.4",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -15,6 +15,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@maplibre/maplibre-react-native": "^11.0.2",
     "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-community/netinfo": "11.4.1",
     "babel-preset-expo": "^55.0.19",
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
