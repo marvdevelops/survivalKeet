@@ -33,6 +33,7 @@ import {
   deleteCustomItem,
   resetCustomItems,
   updateCustomItemCategory,
+  renameCustomItem,
   type ChecklistRow,
   type CustomChecklistItem,
 } from '../../src/services/checklistService';
@@ -70,9 +71,14 @@ const MEMBER_TYPE_COLORS: Record<MemberType, string> = {
   pet: '#27AE60',
 };
 
+// Unified item — predefined rows (keyed by mc_id) or custom rows (keyed by id)
+type UnifiedItem =
+  | ({ kind: 'predefined' } & ChecklistRow)
+  | ({ kind: 'custom'     } & CustomChecklistItem);
+
 interface SectionData {
   title: string;
-  data: ChecklistRow[];
+  data: UnifiedItem[];
 }
 
 // ─── Expiry badge ─────────────────────────────────────────────────────────────
@@ -286,7 +292,8 @@ export default function ChecklistScreen() {
   const [newItemLabel, setNewItemLabel] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('Custom');
   const [categoryPicker, setCategoryPicker] = useState<{ itemId: number; current: string } | null>(null);
-  const [customItems, setCustomItems] = useState<CustomChecklistItem[]>([]);
+  const [renameItem, setRenameItem] = useState<{ itemId: number; current: string } | null>(null);
+  const [renameLabel, setRenameLabel] = useState('');
 
   // QR sync state
   const [qrModal, setQrModal] = useState(false);
@@ -325,14 +332,19 @@ export default function ChecklistScreen() {
 
   function selectMember(member: Member) {
     setSelectedMember(member);
-    const items = getChecklistForMember(member.id);
+    const items  = getChecklistForMember(member.id);
     const custom = getCustomItemsForMember(member.id);
-    setCustomItems(custom);
-    const grouped: Record<string, ChecklistRow[]> = {};
+
+    const grouped: Record<string, UnifiedItem[]> = {};
     for (const item of items) {
       if (!grouped[item.category]) grouped[item.category] = [];
-      grouped[item.category].push(item);
+      grouped[item.category].push({ kind: 'predefined', ...item });
     }
+    for (const item of custom) {
+      if (!grouped[item.category]) grouped[item.category] = [];
+      grouped[item.category].push({ kind: 'custom', ...item });
+    }
+
     setSections(
       Object.entries(grouped)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -340,17 +352,18 @@ export default function ChecklistScreen() {
     );
   }
 
-  function handleToggle(mcId: number, currentChecked: number) {
-    const nowChecked = currentChecked === 0; // toggling on
-    toggleItem(mcId, nowChecked);
+  function handleToggle(item: UnifiedItem) {
+    const nowChecked = item.checked === 0;
+    if (item.kind === 'predefined') {
+      toggleItem(item.mc_id, nowChecked);
+    } else {
+      toggleCustomItem(item.id, nowChecked);
+    }
     if (selectedMember) {
       selectMember(selectedMember);
-      // Tutorial: lesson 2 — check 3 items
       if (nowChecked) {
         const summary = getChecklistSummary(selectedMember.id);
-        if (summary.checked >= 3) {
-          onActionCompleted('checklist_checked_3');
-        }
+        if (summary.checked >= 3) onActionCompleted('checklist_checked_3');
       }
     }
   }
@@ -395,7 +408,15 @@ export default function ChecklistScreen() {
     selectMember(selectedMember);
   }
 
-  function handleDeleteCustomItem(item: CustomChecklistItem) {
+  function handleRenameCustomItem() {
+    if (!renameItem || !renameLabel.trim() || !selectedMember) return;
+    renameCustomItem(renameItem.itemId, renameLabel.trim());
+    setRenameItem(null);
+    setRenameLabel('');
+    selectMember(selectedMember);
+  }
+
+  function handleDeleteCustomItem(item: CustomChecklistItem | (UnifiedItem & { kind: 'custom' })) {
     Alert.alert('Remove item?', item.label, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -484,10 +505,8 @@ export default function ChecklistScreen() {
     }
   }
 
-  const totalItems = sections.reduce((s, sec) => s + sec.data.length, 0) + customItems.length;
-  const checkedItems =
-    sections.reduce((s, sec) => s + sec.data.filter((i) => i.checked === 1).length, 0) +
-    customItems.filter((i) => i.checked === 1).length;
+  const totalItems   = sections.reduce((s, sec) => s + sec.data.length, 0);
+  const checkedItems = sections.reduce((s, sec) => s + sec.data.filter((i) => i.checked === 1).length, 0);
   const progress = totalItems > 0 ? checkedItems / totalItems : 0;
 
   return (
@@ -579,7 +598,9 @@ export default function ChecklistScreen() {
           <SectionList
             style={styles.list}
             sections={sections}
-            keyExtractor={(item) => String(item.mc_id)}
+            keyExtractor={(item) =>
+              item.kind === 'predefined' ? `p-${item.mc_id}` : `c-${item.id}`
+            }
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={false}
@@ -591,6 +612,18 @@ export default function ChecklistScreen() {
                 </Text>
               </View>
             )}
+            renderSectionFooter={({ section }) => (
+              <TouchableOpacity
+                style={styles.sectionAddBtn}
+                onPress={() => {
+                  setNewItemCategory(section.title);
+                  setAddItemModal(true);
+                }}
+              >
+                <Ionicons name="add" size={15} color={colors.primary} />
+                <Text style={styles.sectionAddText}>Add item</Text>
+              </TouchableOpacity>
+            )}
             renderItem={({ item }) => (
               <Pressable
                 style={({ pressed }) => [
@@ -599,13 +632,46 @@ export default function ChecklistScreen() {
                   getExpiryStatus(item.expiry_date) === 'expiring_soon' && styles.checkItemExpiringSoon,
                   pressed && { opacity: 0.7 },
                 ]}
-                onPress={() => handleToggle(item.mc_id, item.checked)}
-                onLongPress={() => setExpirySheet({
-                  source: 'mc',
-                  itemId: item.mc_id,
-                  label: item.label,
-                  currentExpiry: item.expiry_date,
-                })}
+                onPress={() => handleToggle(item)}
+                onLongPress={() => {
+                  if (item.kind === 'predefined') {
+                    setExpirySheet({
+                      source: 'mc',
+                      itemId: item.mc_id,
+                      label: item.label,
+                      currentExpiry: item.expiry_date,
+                    });
+                  } else {
+                    Alert.alert(item.label, 'What would you like to do?', [
+                      {
+                        text: 'Rename',
+                        onPress: () => {
+                          setRenameLabel(item.label);
+                          setRenameItem({ itemId: item.id, current: item.label });
+                        },
+                      },
+                      {
+                        text: 'Change Category',
+                        onPress: () => setCategoryPicker({ itemId: item.id, current: item.category }),
+                      },
+                      {
+                        text: 'Set Expiry Date',
+                        onPress: () => setExpirySheet({
+                          source: 'custom',
+                          itemId: item.id,
+                          label: item.label,
+                          currentExpiry: item.expiry_date,
+                        }),
+                      },
+                      {
+                        text: 'Remove Item',
+                        style: 'destructive',
+                        onPress: () => handleDeleteCustomItem(item),
+                      },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]);
+                  }
+                }}
               >
                 <View style={[styles.checkbox, item.checked === 1 && styles.checkboxChecked]}>
                   {item.checked === 1 && <Ionicons name="checkmark" size={16} color={colors.white} />}
@@ -615,9 +681,16 @@ export default function ChecklistScreen() {
                     <Text style={[styles.checkItemLabel, item.checked === 1 && styles.checkItemLabelDone]}>
                       {item.label}
                     </Text>
+                    {item.kind === 'custom' && (
+                      <View style={styles.customBadge}>
+                        <Text style={styles.customBadgeText}>custom</Text>
+                      </View>
+                    )}
                     <ExpiryBadge expiry={item.expiry_date} />
                   </View>
-                  {item.notes ? <Text style={styles.checkItemNotes}>{item.notes}</Text> : null}
+                  {item.kind === 'predefined' && item.notes
+                    ? <Text style={styles.checkItemNotes}>{item.notes}</Text>
+                    : null}
                   <ExpiryText expiry={item.expiry_date} />
                   {!item.expiry_date && (
                     <Text style={styles.setExpiryHint}>Hold to set expiry date</Text>
@@ -628,69 +701,13 @@ export default function ChecklistScreen() {
             ListFooterComponent={
               selectedMember ? (
                 <View style={styles.customSection}>
-                  {customItems.length > 0 && (
-                    <>
-                      <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderText}>Custom</Text>
-                        <Text style={styles.sectionHeaderCount}>
-                          {customItems.filter((i) => i.checked === 1).length}/{customItems.length}
-                        </Text>
-                      </View>
-                      {customItems.map((item) => (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[
-                            styles.checkItem,
-                            getExpiryStatus(item.expiry_date) === 'expired' && styles.checkItemExpired,
-                            getExpiryStatus(item.expiry_date) === 'expiring_soon' && styles.checkItemExpiringSoon,
-                          ]}
-                          onPress={() => {
-                            toggleCustomItem(item.id, item.checked === 0);
-                            if (selectedMember) selectMember(selectedMember);
-                          }}
-                          onLongPress={() => {
-                            Alert.alert(item.label, 'What would you like to do?', [
-                              {
-                                text: 'Change Category',
-                                onPress: () => setCategoryPicker({ itemId: item.id, current: item.category }),
-                              },
-                              {
-                                text: 'Set Expiry Date',
-                                onPress: () => setExpirySheet({
-                                  source: 'custom',
-                                  itemId: item.id,
-                                  label: item.label,
-                                  currentExpiry: item.expiry_date,
-                                }),
-                              },
-                              {
-                                text: 'Remove Item',
-                                style: 'destructive',
-                                onPress: () => handleDeleteCustomItem(item),
-                              },
-                              { text: 'Cancel', style: 'cancel' },
-                            ]);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.checkbox, item.checked === 1 && styles.checkboxChecked]}>
-                            {item.checked === 1 && <Ionicons name="checkmark" size={16} color={colors.white} />}
-                          </View>
-                          <View style={styles.checkItemInfo}>
-                            <View style={styles.checkItemLabelRow}>
-                              <Text style={[styles.checkItemLabel, item.checked === 1 && styles.checkItemLabelDone]}>
-                                {item.label}
-                              </Text>
-                              <ExpiryBadge expiry={item.expiry_date} />
-                            </View>
-                            <Text style={styles.checkItemNotes}>{item.category}</Text>
-                            <ExpiryText expiry={item.expiry_date} />
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </>
-                  )}
-                  <TouchableOpacity style={styles.addItemBtn} onPress={() => setAddItemModal(true)}>
+                  <TouchableOpacity
+                    style={styles.addItemBtn}
+                    onPress={() => {
+                      setNewItemCategory('Custom');
+                      setAddItemModal(true);
+                    }}
+                  >
                     <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
                     <Text style={styles.addItemText}>Add custom item</Text>
                   </TouchableOpacity>
@@ -863,6 +880,49 @@ export default function ChecklistScreen() {
         onClose={() => setCategoryPicker(null)}
       />
 
+      {/* Rename custom item modal */}
+      <Modal
+        visible={!!renameItem}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setRenameItem(null); setRenameLabel(''); }}
+      >
+        <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={() => { setRenameItem(null); setRenameLabel(''); }}
+          />
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Rename Item</Text>
+            <Text style={styles.inputLabel}>Item Name</Text>
+            <TextInput
+              style={styles.input}
+              value={renameLabel}
+              onChangeText={setRenameLabel}
+              placeholderTextColor={colors.textDim}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleRenameCustomItem}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => { setRenameItem(null); setRenameLabel(''); }}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnSave]}
+                onPress={handleRenameCustomItem}
+              >
+                <Text style={styles.modalBtnSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Add custom item modal */}
       <Modal visible={addItemModal} transparent animationType="slide" onRequestClose={() => { setAddItemModal(false); setNewItemLabel(''); setNewItemCategory('Custom'); }}>
         <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -1014,6 +1074,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 1,
   },
   sectionHeaderCount: { color: colors.textDim, fontSize: fontSize.sm },
+  sectionAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingVertical: spacing.sm, paddingHorizontal: 2,
+    marginBottom: spacing.xs,
+  },
+  sectionAddText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '600' },
+  customBadge: {
+    backgroundColor: colors.primary + '22',
+    borderRadius: radius.full,
+    paddingHorizontal: 6, paddingVertical: 1,
+  },
+  customBadgeText: { color: colors.primary, fontSize: 10, fontWeight: '700' },
 
   checkItem: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md,

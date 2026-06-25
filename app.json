@@ -2,7 +2,7 @@
   "expo": {
     "name": "SurvivalKit",
     "slug": "survivekit",
-    "version": "1.7.6",
+    "version": "1.7.7",
     "scheme": "survivekit",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -26,7 +26,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSContactsUsageDescription": "SurviveKit reads your emergency contact list to send SMS alerts when the Dead Man's Switch fires."
       },
-      "buildNumber": "55"
+      "buildNumber": "57"
     },
     "android": {
       "package": "com.survival.kit",
@@ -50,7 +50,7 @@
         "android.permission.SEND_SMS",
         "android.permission.FLASHLIGHT"
       ],
-      "versionCode": 34
+      "versionCode": 35
     },
     "web": {
       "favicon": "./assets/favicon.png",
