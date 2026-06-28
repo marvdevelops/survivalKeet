@@ -340,13 +340,17 @@ export default function MapContent() {
     return { version: 8, sources: ALL_SOURCES, layers };
   }, [mapMode, overlays.elevation, overlays.flood]);
 
-  // Fly to user's location on first fix
+  // Fly to user's location on first fix.
+  // Must also gate on mapLoaded: on the 2nd launch, getLastKnownPositionAsync()
+  // returns a cached position immediately (before onDidFinishLoadingMap fires),
+  // so userLocation is set before the MapLibre native camera is ready. Calling
+  // easeTo on an uninitialized camera crashes on iOS 26 + New Architecture.
   useEffect(() => {
-    if (userLocation && !hasFlown.current) {
+    if (userLocation && mapLoaded && !hasFlown.current) {
       hasFlown.current = true;
       cameraRef.current?.easeTo({ center: userLocation, zoom: 14, duration: 600 });
     }
-  }, [userLocation]);
+  }, [userLocation, mapLoaded]);
 
   async function requestLocation(): Promise<[number, number] | undefined> {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -796,10 +800,16 @@ export default function MapContent() {
             ? { center: initialLocation.current, zoom: 13 }
             : { center: [0, 20], zoom: 1.5 }}
         />
-        {/* UserLocation removed — triggers NativeLocationModule.onUpdate()
-            TurboModule void-method subscription (RN#54859 crash on iOS 26 +
-            New Architecture). User location is tracked via expo-location
-            polling in requestLocation() instead. */}
+        {/* Custom user-location dot — replaces <UserLocation />, which triggered
+            NativeLocationModule.onUpdate() (TurboModule void-method crash on iOS 26 +
+            New Architecture, RN#54859). The dot renders from the polled userLocation state. */}
+        {userLocation && (
+          <Marker id="user-location" lngLat={userLocation}>
+            <View style={styles.userLocationOuter}>
+              <View style={styles.userLocationInner} />
+            </View>
+          </Marker>
+        )}
 
         {routeGeoJSON && (
           <GeoJSONSource id="route" data={routeGeoJSON}>
@@ -1428,6 +1438,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm, paddingLeft: 36 + spacing.md,
   },
   poisRefreshText: { color: colors.primary, fontSize: fontSize.sm },
+  userLocationOuter: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#4285F480',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#ffffff',
+  },
+  userLocationInner: {
+    width: 12, height: 12, borderRadius: 6,
+    backgroundColor: '#4285F4',
+  },
   pinMarker: {
     width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.white,

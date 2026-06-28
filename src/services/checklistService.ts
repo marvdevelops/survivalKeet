@@ -116,3 +116,10 @@ export function resetCustomItems(memberId: number): void {
     memberId
   );
 }
+
+export function renameCustomCategory(memberId: number, oldCategory: string, newCategory: string): void {
+  getDb().runSync(
+    'UPDATE custom_checklist_items SET category = ? WHERE member_id = ? AND category = ?',
+    newCategory, memberId, oldCategory
+  );
+}

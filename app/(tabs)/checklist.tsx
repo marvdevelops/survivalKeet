@@ -34,6 +34,7 @@ import {
   resetCustomItems,
   updateCustomItemCategory,
   renameCustomItem,
+  renameCustomCategory,
   type ChecklistRow,
   type CustomChecklistItem,
 } from '../../src/services/checklistService';
@@ -43,7 +44,6 @@ import {
   setCustomItemExpiry,
   scheduleExpiryNotifications,
   cancelItemNotifications,
-  todayISO,
   type ExpirySource,
 } from '../../src/services/expiryService';
 import {
@@ -71,7 +71,6 @@ const MEMBER_TYPE_COLORS: Record<MemberType, string> = {
   pet: '#27AE60',
 };
 
-// Unified item — predefined rows (keyed by mc_id) or custom rows (keyed by id)
 type UnifiedItem =
   | ({ kind: 'predefined' } & ChecklistRow)
   | ({ kind: 'custom'     } & CustomChecklistItem);
@@ -102,8 +101,6 @@ function ExpiryBadge({ expiry }: { expiry: string | null }) {
   );
 }
 
-// ─── Expiry date display ──────────────────────────────────────────────────────
-
 function ExpiryText({ expiry }: { expiry: string | null }) {
   if (!expiry) return null;
   const status = getExpiryStatus(expiry);
@@ -111,7 +108,6 @@ function ExpiryText({ expiry }: { expiry: string | null }) {
     status === 'expired' ? colors.danger :
     status === 'expiring_soon' ? colors.accent :
     colors.textDim;
-  // Format YYYY-MM-DD → "May 18, 2026"
   const d = new Date(expiry + 'T00:00:00');
   const label = d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
   return <Text style={[styles.checkItemNotes, { color }]}>Expires {label}</Text>;
@@ -136,13 +132,11 @@ function ExpirySheet({ visible, label, memberName, currentExpiry, onSave, onClos
   const [date, setDate] = useState<Date>(initial);
   const [showPicker, setShowPicker] = useState(false);
 
-  // Re-sync date when sheet re-opens with a different item
   React.useEffect(() => {
     if (visible) {
       setDate(currentExpiry ? new Date(currentExpiry + 'T00:00:00') : (() => {
         const d = new Date(); d.setMonth(d.getMonth() + 6); return d;
       })());
-      // On Android open picker inline; on iOS show inline always
       if (Platform.OS === 'android') setShowPicker(false);
     }
   }, [visible, currentExpiry]);
@@ -172,7 +166,6 @@ function ExpirySheet({ visible, label, memberName, currentExpiry, onSave, onClos
           {memberName} · {label}
         </Text>
 
-        {/* Date display / tap to open picker on Android */}
         {Platform.OS === 'android' ? (
           <TouchableOpacity style={styles.androidDateBtn} onPress={() => setShowPicker(true)}>
             <Ionicons name="calendar-outline" size={20} color={colors.primary} />
@@ -181,7 +174,6 @@ function ExpirySheet({ visible, label, memberName, currentExpiry, onSave, onClos
           </TouchableOpacity>
         ) : null}
 
-        {/* iOS — inline picker; Android — modal picker shown on demand */}
         {(Platform.OS === 'ios' || showPicker) && (
           <DateTimePicker
             value={date}
@@ -218,25 +210,13 @@ function ExpirySheet({ visible, label, memberName, currentExpiry, onSave, onClos
   );
 }
 
-// ─── Custom item categories ───────────────────────────────────────────────────
+// ─── Category picker bottom sheet ────────────────────────────────────────────
 
 const CUSTOM_CATEGORIES = [
-  'Custom',
-  'Water',
-  'Food',
-  'First Aid',
-  'Documents',
-  'Clothing',
-  'Tools',
-  'Communication',
-  'Shelter',
-  'Medicine',
-  'Hygiene',
-  'Baby',
-  'Pet',
+  'Custom', 'Water', 'Food', 'First Aid', 'Documents', 'Clothing',
+  'Tools', 'Communication', 'Shelter', 'Medicine', 'Hygiene', 'Baby', 'Pet',
 ];
 
-// Category picker bottom sheet
 function CategoryPickerSheet({
   visible,
   current,
@@ -278,6 +258,136 @@ function CategoryPickerSheet({
   );
 }
 
+// ─── Item edit sheet ──────────────────────────────────────────────────────────
+
+interface ItemEditSheetProps {
+  visible: boolean;
+  item: UnifiedItem | null;
+  memberName: string;
+  onClose: () => void;
+  onSaveExpiry: (iso: string | null) => void;
+  onRename: (label: string) => void;
+  onChangeCategory: (cat: string) => void;
+  onDelete: () => void;
+}
+
+function ItemEditSheet({
+  visible, item, memberName, onClose, onSaveExpiry, onRename, onChangeCategory, onDelete,
+}: ItemEditSheetProps) {
+  const [editLabel, setEditLabel] = useState('');
+  const [showExpiry, setShowExpiry] = useState(false);
+  const [showCatPicker, setShowCatPicker] = useState(false);
+
+  React.useEffect(() => {
+    if (visible && item) {
+      setEditLabel(item.label);
+      setShowExpiry(false);
+      setShowCatPicker(false);
+    }
+  }, [visible, item]);
+
+  if (!item) return null;
+
+  const isCustom = item.kind === 'custom';
+  const category = item.kind === 'custom' ? item.category : (item as ChecklistRow).category;
+
+  function handleSaveLabel() {
+    if (editLabel.trim() && editLabel.trim() !== item!.label) {
+      onRename(editLabel.trim());
+    } else {
+      onClose();
+    }
+  }
+
+  return (
+    <>
+      <Modal visible={visible && !showExpiry && !showCatPicker} transparent animationType="slide" onRequestClose={onClose}>
+        <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={onClose} />
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Edit Item</Text>
+
+            {isCustom ? (
+              <>
+                <Text style={styles.inputLabel}>Item Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editLabel}
+                  onChangeText={setEditLabel}
+                  placeholderTextColor={colors.textDim}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveLabel}
+                />
+
+                <Text style={styles.inputLabel}>Category</Text>
+                <TouchableOpacity
+                  style={styles.catSelectBtn}
+                  onPress={() => setShowCatPicker(true)}
+                >
+                  <Text style={styles.catSelectText}>{category}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.editItemReadonlyLabel}>{item.label}</Text>
+            )}
+
+            {/* Expiry date row */}
+            <TouchableOpacity style={styles.editItemRow} onPress={() => setShowExpiry(true)}>
+              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.editItemRowLabel}>Expiry Date</Text>
+                {item.expiry_date ? (
+                  <ExpiryText expiry={item.expiry_date} />
+                ) : (
+                  <Text style={styles.editItemRowHint}>Not set</Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
+            </TouchableOpacity>
+
+            <View style={styles.modalActions}>
+              {isCustom && (
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnDanger]}
+                  onPress={onDelete}
+                >
+                  <Text style={styles.modalBtnDangerText}>Delete</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel]} onPress={onClose}>
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              {isCustom && (
+                <TouchableOpacity style={[styles.modalBtn, styles.modalBtnSave]} onPress={handleSaveLabel}>
+                  <Text style={styles.modalBtnSaveText}>Save</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <ExpirySheet
+        visible={showExpiry}
+        label={item.label}
+        memberName={memberName}
+        currentExpiry={item.expiry_date}
+        onSave={(iso) => { setShowExpiry(false); onSaveExpiry(iso); }}
+        onClose={() => setShowExpiry(false)}
+      />
+
+      <CategoryPickerSheet
+        visible={showCatPicker}
+        current={category}
+        onSelect={(cat) => { setShowCatPicker(false); onChangeCategory(cat); }}
+        onClose={() => setShowCatPicker(false)}
+      />
+    </>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ChecklistScreen() {
@@ -291,9 +401,13 @@ export default function ChecklistScreen() {
   const [addItemModal, setAddItemModal] = useState(false);
   const [newItemLabel, setNewItemLabel] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('Custom');
-  const [categoryPicker, setCategoryPicker] = useState<{ itemId: number; current: string } | null>(null);
-  const [renameItem, setRenameItem] = useState<{ itemId: number; current: string } | null>(null);
-  const [renameLabel, setRenameLabel] = useState('');
+
+  // Item edit sheet state
+  const [editingItem, setEditingItem] = useState<UnifiedItem | null>(null);
+
+  // Category rename state
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editCategoryLabel, setEditCategoryLabel] = useState('');
 
   // QR sync state
   const [qrModal, setQrModal] = useState(false);
@@ -305,14 +419,6 @@ export default function ChecklistScreen() {
   const scanned = useRef(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const insets = useSafeAreaInsets();
-
-  // Expiry sheet state
-  const [expirySheet, setExpirySheet] = useState<{
-    source: ExpirySource;
-    itemId: number;   // mc.id for 'mc', custom_checklist_items.id for 'custom'
-    label: string;
-    currentExpiry: string | null;
-  } | null>(null);
 
   useFocusEffect(useCallback(() => { loadMembers(); }, []));
 
@@ -408,15 +514,7 @@ export default function ChecklistScreen() {
     selectMember(selectedMember);
   }
 
-  function handleRenameCustomItem() {
-    if (!renameItem || !renameLabel.trim() || !selectedMember) return;
-    renameCustomItem(renameItem.itemId, renameLabel.trim());
-    setRenameItem(null);
-    setRenameLabel('');
-    selectMember(selectedMember);
-  }
-
-  function handleDeleteCustomItem(item: CustomChecklistItem | (UnifiedItem & { kind: 'custom' })) {
+  function handleDeleteCustomItem(item: UnifiedItem & { kind: 'custom' }) {
     Alert.alert('Remove item?', item.label, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -424,6 +522,7 @@ export default function ChecklistScreen() {
         onPress: () => {
           cancelItemNotifications('custom', item.id);
           deleteCustomItem(item.id);
+          setEditingItem(null);
           if (selectedMember) selectMember(selectedMember);
         },
       },
@@ -431,8 +530,10 @@ export default function ChecklistScreen() {
   }
 
   async function handleSaveExpiry(iso: string | null) {
-    if (!expirySheet || !selectedMember) return;
-    const { source, itemId, label } = expirySheet;
+    if (!editingItem || !selectedMember) return;
+    const source: ExpirySource = editingItem.kind === 'predefined' ? 'mc' : 'custom';
+    const itemId = editingItem.kind === 'predefined' ? editingItem.mc_id : editingItem.id;
+    const label = editingItem.label;
 
     if (source === 'mc') {
       setMcItemExpiry(itemId, iso);
@@ -446,7 +547,30 @@ export default function ChecklistScreen() {
       cancelItemNotifications(source, itemId);
     }
 
-    setExpirySheet(null);
+    setEditingItem(null);
+    selectMember(selectedMember);
+  }
+
+  function handleRenameItem(label: string) {
+    if (!editingItem || editingItem.kind !== 'custom' || !selectedMember) return;
+    renameCustomItem(editingItem.id, label);
+    setEditingItem(null);
+    selectMember(selectedMember);
+  }
+
+  function handleChangeItemCategory(cat: string) {
+    if (!editingItem || editingItem.kind !== 'custom' || !selectedMember) return;
+    updateCustomItemCategory(editingItem.id, cat);
+    setEditingItem(null);
+    selectMember(selectedMember);
+  }
+
+  function handleRenameCategorySubmit() {
+    if (!editingCategory || !editCategoryLabel.trim() || !selectedMember) return;
+    if (editCategoryLabel.trim() === editingCategory) { setEditingCategory(null); return; }
+    renameCustomCategory(selectedMember.id, editingCategory, editCategoryLabel.trim());
+    setEditingCategory(null);
+    setEditCategoryLabel('');
     selectMember(selectedMember);
   }
 
@@ -604,14 +728,31 @@ export default function ChecklistScreen() {
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={false}
-            renderSectionHeader={({ section }) => (
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionHeaderText}>{section.title}</Text>
-                <Text style={styles.sectionHeaderCount}>
-                  {section.data.filter((i) => i.checked === 1).length}/{section.data.length}
-                </Text>
-              </View>
-            )}
+            renderSectionHeader={({ section }) => {
+              const hasCustomItems = section.data.some((i) => i.kind === 'custom');
+              return (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>{section.title}</Text>
+                  <View style={styles.sectionHeaderRight}>
+                    <Text style={styles.sectionHeaderCount}>
+                      {section.data.filter((i) => i.checked === 1).length}/{section.data.length}
+                    </Text>
+                    {hasCustomItems && (
+                      <TouchableOpacity
+                        style={styles.pencilBtn}
+                        onPress={() => {
+                          setEditCategoryLabel(section.title);
+                          setEditingCategory(section.title);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                      >
+                        <Ionicons name="pencil-sharp" size={14} color={colors.textDim} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            }}
             renderSectionFooter={({ section }) => (
               <TouchableOpacity
                 style={styles.sectionAddBtn}
@@ -633,45 +774,6 @@ export default function ChecklistScreen() {
                   pressed && { opacity: 0.7 },
                 ]}
                 onPress={() => handleToggle(item)}
-                onLongPress={() => {
-                  if (item.kind === 'predefined') {
-                    setExpirySheet({
-                      source: 'mc',
-                      itemId: item.mc_id,
-                      label: item.label,
-                      currentExpiry: item.expiry_date,
-                    });
-                  } else {
-                    Alert.alert(item.label, 'What would you like to do?', [
-                      {
-                        text: 'Rename',
-                        onPress: () => {
-                          setRenameLabel(item.label);
-                          setRenameItem({ itemId: item.id, current: item.label });
-                        },
-                      },
-                      {
-                        text: 'Change Category',
-                        onPress: () => setCategoryPicker({ itemId: item.id, current: item.category }),
-                      },
-                      {
-                        text: 'Set Expiry Date',
-                        onPress: () => setExpirySheet({
-                          source: 'custom',
-                          itemId: item.id,
-                          label: item.label,
-                          currentExpiry: item.expiry_date,
-                        }),
-                      },
-                      {
-                        text: 'Remove Item',
-                        style: 'destructive',
-                        onPress: () => handleDeleteCustomItem(item),
-                      },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]);
-                  }
-                }}
               >
                 <View style={[styles.checkbox, item.checked === 1 && styles.checkboxChecked]}>
                   {item.checked === 1 && <Ionicons name="checkmark" size={16} color={colors.white} />}
@@ -692,24 +794,29 @@ export default function ChecklistScreen() {
                     ? <Text style={styles.checkItemNotes}>{item.notes}</Text>
                     : null}
                   <ExpiryText expiry={item.expiry_date} />
-                  {!item.expiry_date && (
-                    <Text style={styles.setExpiryHint}>Hold to set expiry date</Text>
-                  )}
                 </View>
+                {/* Pencil icon — rightmost */}
+                <TouchableOpacity
+                  style={styles.pencilBtn}
+                  onPress={() => setEditingItem(item)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                >
+                  <Ionicons name="pencil-sharp" size={15} color={colors.textDim} />
+                </TouchableOpacity>
               </Pressable>
             )}
             ListFooterComponent={
               selectedMember ? (
                 <View style={styles.customSection}>
                   <TouchableOpacity
-                    style={styles.addItemBtn}
+                    style={styles.addCategoryBtn}
                     onPress={() => {
                       setNewItemCategory('Custom');
                       setAddItemModal(true);
                     }}
                   >
                     <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-                    <Text style={styles.addItemText}>Add custom item</Text>
+                    <Text style={styles.addCategoryText}>Add Category / Item</Text>
                   </TouchableOpacity>
                 </View>
               ) : null
@@ -854,68 +961,55 @@ export default function ChecklistScreen() {
         </View>
       </Modal>
 
-      {/* Expiry date picker sheet */}
-      {expirySheet && selectedMember && (
-        <ExpirySheet
-          visible
-          label={expirySheet.label}
+      {/* ── Item edit sheet ───────────────────────────────────────────── */}
+      {selectedMember && (
+        <ItemEditSheet
+          visible={!!editingItem}
+          item={editingItem}
           memberName={selectedMember.name}
-          currentExpiry={expirySheet.currentExpiry}
-          onSave={handleSaveExpiry}
-          onClose={() => setExpirySheet(null)}
+          onClose={() => setEditingItem(null)}
+          onSaveExpiry={handleSaveExpiry}
+          onRename={handleRenameItem}
+          onChangeCategory={handleChangeItemCategory}
+          onDelete={() => {
+            if (editingItem?.kind === 'custom') handleDeleteCustomItem(editingItem);
+          }}
         />
       )}
 
-      {/* Category picker for existing custom items */}
-      <CategoryPickerSheet
-        visible={!!categoryPicker}
-        current={categoryPicker?.current ?? 'Custom'}
-        onSelect={(cat) => {
-          if (categoryPicker && selectedMember) {
-            updateCustomItemCategory(categoryPicker.itemId, cat);
-            setCategoryPicker(null);
-            selectMember(selectedMember);
-          }
-        }}
-        onClose={() => setCategoryPicker(null)}
-      />
-
-      {/* Rename custom item modal */}
+      {/* ── Category rename modal ─────────────────────────────────────── */}
       <Modal
-        visible={!!renameItem}
+        visible={!!editingCategory}
         transparent
         animationType="slide"
-        onRequestClose={() => { setRenameItem(null); setRenameLabel(''); }}
+        onRequestClose={() => { setEditingCategory(null); setEditCategoryLabel(''); }}
       >
         <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity
             style={styles.modalDismiss}
             activeOpacity={1}
-            onPress={() => { setRenameItem(null); setRenameLabel(''); }}
+            onPress={() => { setEditingCategory(null); setEditCategoryLabel(''); }}
           />
           <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Rename Item</Text>
-            <Text style={styles.inputLabel}>Item Name</Text>
+            <Text style={styles.modalTitle}>Rename Category</Text>
+            <Text style={styles.inputLabel}>Category Name</Text>
             <TextInput
               style={styles.input}
-              value={renameLabel}
-              onChangeText={setRenameLabel}
+              value={editCategoryLabel}
+              onChangeText={setEditCategoryLabel}
               placeholderTextColor={colors.textDim}
               autoFocus
               returnKeyType="done"
-              onSubmitEditing={handleRenameCustomItem}
+              onSubmitEditing={handleRenameCategorySubmit}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={() => { setRenameItem(null); setRenameLabel(''); }}
+                onPress={() => { setEditingCategory(null); setEditCategoryLabel(''); }}
               >
                 <Text style={styles.modalBtnCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnSave]}
-                onPress={handleRenameCustomItem}
-              >
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnSave]} onPress={handleRenameCategorySubmit}>
                 <Text style={styles.modalBtnSaveText}>Save</Text>
               </TouchableOpacity>
             </View>
@@ -923,7 +1017,7 @@ export default function ChecklistScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Add custom item modal */}
+      {/* ── Add custom item modal ─────────────────────────────────────── */}
       <Modal visible={addItemModal} transparent animationType="slide" onRequestClose={() => { setAddItemModal(false); setNewItemLabel(''); setNewItemCategory('Custom'); }}>
         <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setAddItemModal(false)} />
@@ -968,7 +1062,7 @@ export default function ChecklistScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Add member modal */}
+      {/* ── Add member modal ──────────────────────────────────────────── */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
         <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setAddModal(false)} />
@@ -1071,8 +1165,9 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: {
     color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 1,
+    textTransform: 'uppercase', letterSpacing: 1, flex: 1,
   },
+  sectionHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sectionHeaderCount: { color: colors.textDim, fontSize: fontSize.sm },
   sectionAddBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
@@ -1088,7 +1183,7 @@ const styles = StyleSheet.create({
   customBadgeText: { color: colors.primary, fontSize: 10, fontWeight: '700' },
 
   checkItem: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1,
     borderColor: colors.border, padding: spacing.md, marginBottom: spacing.xs, minHeight: 56,
   },
@@ -1096,7 +1191,7 @@ const styles = StyleSheet.create({
   checkItemExpiringSoon: { borderColor: colors.accent + '80', backgroundColor: colors.accent + '08' },
   checkbox: {
     width: 26, height: 26, borderRadius: 7, borderWidth: 2, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   checkboxChecked: { backgroundColor: colors.success, borderColor: colors.success },
   checkItemInfo: { flex: 1 },
@@ -1104,7 +1199,10 @@ const styles = StyleSheet.create({
   checkItemLabel: { color: colors.text, fontSize: 16, lineHeight: 24 },
   checkItemLabelDone: { color: colors.textDim, textDecorationLine: 'line-through' },
   checkItemNotes: { color: colors.textDim, fontSize: fontSize.sm, marginTop: 2 },
-  setExpiryHint: { color: colors.textDim, fontSize: 10, marginTop: 2, fontStyle: 'italic' },
+
+  pencilBtn: {
+    width: 32, height: 32, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
 
   // Expiry badge
   expiryBadge: {
@@ -1115,13 +1213,27 @@ const styles = StyleSheet.create({
   expiryBadgeOrange: { backgroundColor: colors.accent },
   expiryBadgeText: { color: colors.white, fontSize: 10, fontWeight: '700' },
 
-  customSection: { paddingBottom: spacing.xxl },
-  addItemBtn: {
+  customSection: { paddingBottom: spacing.xxl, paddingTop: spacing.sm },
+  addCategoryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm, justifyContent: 'center',
     borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary + '60',
-    borderStyle: 'dashed', padding: spacing.md, marginTop: spacing.sm, minHeight: 52,
+    borderStyle: 'dashed', padding: spacing.md, minHeight: 52,
   },
-  addItemText: { color: colors.primary, fontSize: fontSize.md, fontWeight: '600' },
+  addCategoryText: { color: colors.primary, fontSize: fontSize.md, fontWeight: '600' },
+
+  // Item edit sheet
+  editItemReadonlyLabel: {
+    color: colors.text, fontSize: fontSize.lg, fontWeight: '600',
+    paddingVertical: spacing.sm,
+  },
+  editItemRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surfaceElevated, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.md, minHeight: 56,
+  },
+  editItemRowLabel: { color: colors.text, fontSize: fontSize.md, fontWeight: '600' },
+  editItemRowHint: { color: colors.textDim, fontSize: fontSize.sm, marginTop: 2 },
 
   // Modals
   modalKAV: { flex: 1, justifyContent: 'flex-end' },
@@ -1169,10 +1281,7 @@ const styles = StyleSheet.create({
   },
 
   // QR share modal
-  qrOverlay: {
-    flex: 1, backgroundColor: '#000000BB',
-    justifyContent: 'flex-end',
-  },
+  qrOverlay: { flex: 1, backgroundColor: '#000000BB', justifyContent: 'flex-end' },
   qrSheet: {
     backgroundColor: colors.surface, borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl, padding: spacing.lg,
@@ -1186,10 +1295,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, borderRadius: radius.lg,
     padding: spacing.lg, alignSelf: 'center',
   },
-  qrHint: {
-    color: colors.textSecondary, fontSize: fontSize.sm,
-    textAlign: 'center', lineHeight: 20,
-  },
+  qrHint: { color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', lineHeight: 20 },
   qrSizeNote: { color: colors.textDim, fontSize: 10, textAlign: 'center' },
   qrCloseBtn: {
     backgroundColor: colors.surfaceElevated, borderRadius: radius.md,
@@ -1209,24 +1315,12 @@ const styles = StyleSheet.create({
   },
   scanTitle: { color: colors.white, fontSize: fontSize.xl, fontWeight: '700' },
   camera: { flex: 1 },
-  scanOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  scanFrame: {
-    width: 240, height: 240, borderRadius: radius.lg,
-    borderWidth: 2, borderColor: colors.primary,
-  },
-  scanHint: {
-    color: colors.white, textAlign: 'center',
-    fontSize: fontSize.sm, padding: spacing.lg,
-    backgroundColor: '#00000088',
-  },
+  scanOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  scanFrame: { width: 240, height: 240, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary },
+  scanHint: { color: colors.white, textAlign: 'center', fontSize: fontSize.sm, padding: spacing.lg, backgroundColor: '#00000088' },
 
   // Confirm import
-  confirmBody: {
-    color: colors.textSecondary, fontSize: fontSize.md, lineHeight: 22,
-  },
+  confirmBody: { color: colors.textSecondary, fontSize: fontSize.md, lineHeight: 22 },
   confirmOptionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.surfaceElevated, borderRadius: radius.md,
@@ -1243,32 +1337,22 @@ const styles = StyleSheet.create({
   confirmOptionDesc: { color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2, lineHeight: 18 },
 
   // Category picker
-  catGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm,
-  },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   catChip: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
   },
-  catChipActive: {
-    backgroundColor: colors.primary, borderColor: colors.primary,
-  },
-  catChipText: {
-    color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '600',
-  },
-  catChipTextActive: {
-    color: colors.white,
-  },
+  catChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  catChipText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '600' },
+  catChipTextActive: { color: colors.white },
   catSelectBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.surfaceElevated, borderRadius: radius.md,
     borderWidth: 1, borderColor: colors.border,
     paddingHorizontal: spacing.md, paddingVertical: spacing.md, minHeight: 52,
   },
-  catSelectText: {
-    color: colors.text, fontSize: fontSize.md, fontWeight: '600',
-  },
+  catSelectText: { color: colors.text, fontSize: fontSize.md, fontWeight: '600' },
 
   // Date picker
   datePicker: { width: '100%' },
