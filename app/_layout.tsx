@@ -14,6 +14,7 @@ import { registerForPushNotifications } from '../src/services/pushRegistrationSe
 import { DMS_ALERT_TYPE, triggerSmsAlert } from '../src/services/dmsService';
 import { isOnline } from '../src/utils/connectivity';
 import { configureNotificationHandler } from '../src/utils/alertNotifications';
+import { registerGDACSBackgroundTask } from '../src/tasks/alertBackgroundTask';
 
 // How long the loading screen stays visible at minimum (ms)
 const MIN_LOADING_MS = 3000;
@@ -105,9 +106,11 @@ export default function RootLayout() {
     configureNotificationHandler();
     Notifications.requestPermissionsAsync().catch(() => null);
 
-    // Register for push notifications after DB is ready — fire and forget.
-    // Fails silently if offline or permissions denied.
-    setTimeout(() => { registerForPushNotifications(); }, MIN_LOADING_MS + 500);
+    // Register background tasks after DB is ready — both are best-effort.
+    setTimeout(() => {
+      registerForPushNotifications();
+      registerGDACSBackgroundTask();
+    }, MIN_LOADING_MS + 500);
 
     const timer = setTimeout(() => setReady(true), MIN_LOADING_MS);
     return () => clearTimeout(timer);
