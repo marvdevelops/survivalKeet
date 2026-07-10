@@ -50,7 +50,7 @@
         "android.permission.SEND_SMS",
         "android.permission.FLASHLIGHT"
       ],
-      "versionCode": 36
+      "versionCode": 38
     },
     "web": {
       "favicon": "./assets/favicon.png",
