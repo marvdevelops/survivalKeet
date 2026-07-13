@@ -12,6 +12,7 @@ import { TutorialProvider } from '../src/context/TutorialContext';
 import { colors } from '../src/theme';
 import { registerForPushNotifications } from '../src/services/pushRegistrationService';
 import { DMS_ALERT_TYPE, triggerSmsAlert } from '../src/services/dmsService';
+import * as Location from 'expo-location';
 import { isOnline } from '../src/utils/connectivity';
 import { configureNotificationHandler } from '../src/utils/alertNotifications';
 import { registerGDACSBackgroundTask } from '../src/tasks/alertBackgroundTask';
@@ -105,6 +106,17 @@ export default function RootLayout() {
     // Configure local notification handler and request permissions.
     configureNotificationHandler();
     Notifications.requestPermissionsAsync().catch(() => null);
+
+    // Request location permission early so the dialog appears on first launch
+    // rather than waiting for the user to open Map or Compass.
+    // On Android, also prompt to enable device location services if off.
+    Location.requestForegroundPermissionsAsync()
+      .then(({ status }) => {
+        if (status === 'granted') {
+          Location.enableNetworkProviderAsync().catch(() => null);
+        }
+      })
+      .catch(() => null);
 
     // Register background tasks after DB is ready — both are best-effort.
     setTimeout(() => {
